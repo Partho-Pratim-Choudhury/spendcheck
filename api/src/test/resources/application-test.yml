@@ -1,0 +1,12 @@
+spendcheck:
+  jwt:
+    secret: test-secret-test-secret-test-secret-0123456789
+  seed-user:
+    email: partho@test.local
+    password: test-password
+    name: Partho
+    salary-day: 7
+spring:
+  ai:
+    openai:
+      api-key: not-set
