@@ -23,3 +23,22 @@ export function formatINR(paise: number, opts: { showPaise?: boolean } = {}): st
   const tail = showPaise ? `.${String(fraction).padStart(2, '0')}` : '';
   return `${negative ? '-' : ''}₹${grouped}${tail}`;
 }
+
+/**
+ * Parse user-typed rupees ("1,250", "₹450.5", "450") into paise. Returns null when empty or invalid.
+ */
+export function parseRupees(input: string): number | null {
+  const cleaned = input.replace(/[₹,\s]/g, '');
+  if (cleaned === '') return null;
+  if (!/^\d+(\.\d{0,2})?$/.test(cleaned)) return null;
+  const [whole, frac = ''] = cleaned.split('.');
+  return Number(whole) * 100 + Number(frac.padEnd(2, '0'));
+}
+
+/** Paise → editable rupee string ("1250", "450.50"); '' for 0 when `blankZero`. */
+export function paiseToInput(paise: number, blankZero = false): string {
+  if (blankZero && paise === 0) return '';
+  const rupees = Math.floor(Math.abs(paise) / 100);
+  const frac = Math.abs(paise) % 100;
+  return `${paise < 0 ? '-' : ''}${rupees}${frac ? `.${String(frac).padStart(2, '0')}` : ''}`;
+}

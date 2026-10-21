@@ -43,7 +43,10 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontSize: 12, fontWeight: '500' },
       }}>
       {/* Order matters: Chat is first, so it is the initial tab. */}
-      <Tabs.Screen name="chat" options={{ title: 'Chat', tabBarIcon: ChatIcon }} />
+      <Tabs.Screen
+        name="chat"
+        options={{ title: 'Chat', tabBarIcon: ChatIcon, headerShown: false, tabBarHideOnKeyboard: true }}
+      />
       <Tabs.Screen
         name="dashboard"
         options={{

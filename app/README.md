@@ -1,6 +1,6 @@
 # SpendCheck — mobile app
 
-Expo (SDK 58) + TypeScript + expo-router. Android-first.
+Expo (SDK 57) + TypeScript + expo-router. Android-first.
 
 ## Setup
 

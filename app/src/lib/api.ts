@@ -47,8 +47,10 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
 type Query = Record<string, string | number | boolean | null | undefined>;
 
 export interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
-  /** JSON-serialised as the request body. */
+  /** JSON-serialised as the request body; a FormData body is sent as multipart as-is. */
   body?: unknown;
+  /** Override the default 15 s timeout (e.g. voice uploads). */
+  timeoutMs?: number;
   query?: Query;
   /** Skip the Authorization header (login). */
   auth?: boolean;
@@ -65,7 +67,8 @@ function buildUrl(base: string, path: string, query?: Query): string {
 }
 
 export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Promise<T> {
-  const { body, query, auth = true, headers, ...init } = opts;
+  const { body, query, auth = true, headers, timeoutMs = REQUEST_TIMEOUT_MS, ...init } = opts;
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
 
   if (!API_BASE) {
     throw new ApiError({
@@ -79,14 +82,15 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
     Accept: 'application/json',
     ...(headers as Record<string, string> | undefined),
   };
-  if (body !== undefined) finalHeaders['Content-Type'] = 'application/json';
+  // FormData: let fetch set multipart/form-data with its boundary.
+  if (body !== undefined && !isForm) finalHeaders['Content-Type'] = 'application/json';
   // Remember which token this request carried, so a late 401 can't sign out a newer session.
   const sentToken = auth ? authToken : null;
   if (sentToken) finalHeaders.Authorization = `Bearer ${sentToken}`;
 
   // Our own controller enforces the timeout; a caller's signal (e.g. React Query cancel) is forwarded into it.
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const external = init.signal;
   const forwardAbort = () => controller.abort();
   if (external?.aborted) controller.abort();
@@ -98,7 +102,7 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
     res = await fetch(buildUrl(API_BASE, path, query), {
       ...init,
       headers: finalHeaders,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
       signal: controller.signal,
     });
     // Inside the try so the timeout also covers a stalled body.
@@ -110,7 +114,7 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
       status: 0,
       title: timedOut ? 'Request timed out' : 'Network error',
       detail: timedOut
-        ? `${API_URL} did not respond within ${REQUEST_TIMEOUT_MS / 1000}s.`
+        ? `${API_URL} did not respond within ${Math.round(timeoutMs / 1000)}s.`
         : `Can't reach server at ${API_URL}. Check the backend is running and your phone is on the same network.`,
     });
   } finally {
