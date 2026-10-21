@@ -35,7 +35,8 @@ public final class TransactionDtos {
             @Size(max = 1000) String note,
             @NotNull Instant spentAt,
             NeedOrWant needOrWant,
-            @NotNull TransactionSource source) {}
+            @NotNull TransactionSource source,
+            Long rawInputId) {}
 
     /** All fields optional; null means "leave unchanged". */
     public record UpdateTransactionRequest(

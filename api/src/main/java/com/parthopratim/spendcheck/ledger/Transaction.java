@@ -122,6 +122,8 @@ public class Transaction implements Persistable<UUID> {
     public void setSpentAt(Instant spentAt) { this.spentAt = spentAt; }
     public void setNeedOrWant(NeedOrWant needOrWant) { this.needOrWant = needOrWant; }
     public void setStatus(TransactionStatus status) { this.status = status; }
+    public void setPlanId(Long planId) { this.planId = planId; }
+    public void setRawInputId(Long rawInputId) { this.rawInputId = rawInputId; }
 
     @Override
     public boolean isNew() {

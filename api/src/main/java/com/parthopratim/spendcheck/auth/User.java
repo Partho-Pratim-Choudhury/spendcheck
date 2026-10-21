@@ -60,4 +60,6 @@ public class User {
     public String getTz() { return tz; }
     public int getSalaryDay() { return salaryDay; }
     public Instant getCreatedAt() { return createdAt; }
+
+    public void setSalaryDay(int salaryDay) { this.salaryDay = salaryDay; }
 }

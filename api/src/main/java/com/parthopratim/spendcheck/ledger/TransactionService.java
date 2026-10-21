@@ -1,13 +1,14 @@
 package com.parthopratim.spendcheck.ledger;
 
-import com.parthopratim.spendcheck.auth.UserRepository;
+import com.parthopratim.spendcheck.auth.UserTime;
 import com.parthopratim.spendcheck.common.ConflictException;
 import com.parthopratim.spendcheck.common.FieldValidationException;
 import com.parthopratim.spendcheck.common.NotFoundException;
-import com.parthopratim.spendcheck.config.AppProperties;
+import com.parthopratim.spendcheck.input.RawInputRepository;
 import com.parthopratim.spendcheck.ledger.TransactionDtos.CreateTransactionRequest;
 import com.parthopratim.spendcheck.ledger.TransactionDtos.TransactionResponse;
 import com.parthopratim.spendcheck.ledger.TransactionDtos.UpdateTransactionRequest;
+import com.parthopratim.spendcheck.plan.BudgetPlanRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -15,8 +16,6 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -28,25 +27,26 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class TransactionService {
 
-    private static final Logger log = LoggerFactory.getLogger(TransactionService.class);
-
     private static final Duration MAX_FUTURE_SKEW = Duration.ofDays(1);
 
     public record CreateResult(TransactionResponse transaction, boolean created) {}
 
     private final TransactionRepository transactions;
     private final CategoryRepository categories;
-    private final UserRepository users;
-    private final AppProperties props;
+    private final RawInputRepository rawInputs;
+    private final BudgetPlanRepository plans;
+    private final UserTime userTime;
     private final TransactionTemplate tx;
     private final TransactionTemplate readTx;
 
     public TransactionService(TransactionRepository transactions, CategoryRepository categories,
-                              UserRepository users, AppProperties props, PlatformTransactionManager txManager) {
+                              RawInputRepository rawInputs, BudgetPlanRepository plans, UserTime userTime,
+                              PlatformTransactionManager txManager) {
         this.transactions = transactions;
         this.categories = categories;
-        this.users = users;
-        this.props = props;
+        this.rawInputs = rawInputs;
+        this.plans = plans;
+        this.userTime = userTime;
         this.tx = new TransactionTemplate(txManager);
         this.readTx = new TransactionTemplate(txManager);
         this.readTx.setReadOnly(true);
@@ -73,9 +73,14 @@ public class TransactionService {
         }
         Category category = usableCategory(userId, req.categoryId());
         checkSpentAt(req.spentAt());
+        if (req.rawInputId() != null && !rawInputs.existsByIdAndUserId(req.rawInputId(), userId)) {
+            throw new FieldValidationException("rawInputId", "raw input does not exist");
+        }
         Transaction t = new Transaction(req.id(), userId, req.amountPaise(), category, blankToNull(req.merchant()),
                 blankToNull(req.note()), req.spentAt(), req.needOrWant(), req.source(),
                 TransactionStatus.CONFIRMED);
+        t.setRawInputId(req.rawInputId());
+        t.setPlanId(activePlanCovering(userId, req.spentAt()));
         transactions.saveAndFlush(t);
         return new CreateResult(TransactionResponse.from(t), true);
     }
@@ -108,6 +113,7 @@ public class TransactionService {
         if (req.spentAt() != null) {
             checkSpentAt(req.spentAt());
             t.setSpentAt(req.spentAt());
+            t.setPlanId(activePlanCovering(userId, req.spentAt()));
         }
         if (req.needOrWant() != null) {
             t.setNeedOrWant(req.needOrWant());
@@ -131,7 +137,7 @@ public class TransactionService {
         if (from != null && to != null && from.isAfter(to)) {
             throw new FieldValidationException("from", "must not be after 'to'");
         }
-        ZoneId zone = userZone(userId);
+        ZoneId zone = userTime.zone(userId);
         Specification<Transaction> spec = (root, q, cb) -> cb.and(
                 cb.equal(root.get("userId"), userId),
                 cb.notEqual(root.get("status"), TransactionStatus.CANCELLED));
@@ -167,23 +173,16 @@ public class TransactionService {
         return c;
     }
 
-    private static void checkSpentAt(Instant spentAt) {
-        if (spentAt.isAfter(Instant.now().plus(MAX_FUTURE_SKEW))) {
-            throw new FieldValidationException("spentAt", "must not be more than 1 day in the future");
-        }
+    /** The ACTIVE plan whose period contains the spend's date (user tz), or null. */
+    private Long activePlanCovering(long userId, Instant spentAt) {
+        LocalDate date = LocalDate.ofInstant(spentAt, userTime.zone(userId));
+        return plans.findActiveIdCovering(userId, date).orElse(null);
     }
 
-    private ZoneId userZone(long userId) {
-        return users.findById(userId)
-                .map(u -> {
-                    try {
-                        return ZoneId.of(u.getTz());
-                    } catch (RuntimeException e) {
-                        log.warn("User {} has invalid tz '{}'; falling back to {}", userId, u.getTz(), props.tz());
-                        return props.tz();
-                    }
-                })
-                .orElse(props.tz());
+    private void checkSpentAt(Instant spentAt) {
+        if (spentAt.isAfter(userTime.now().plus(MAX_FUTURE_SKEW))) {
+            throw new FieldValidationException("spentAt", "must not be more than 1 day in the future");
+        }
     }
 
     private static String blankToNull(String s) {
