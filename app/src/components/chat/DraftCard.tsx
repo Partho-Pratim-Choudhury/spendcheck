@@ -1,4 +1,3 @@
-import * as Crypto from 'expo-crypto';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -6,16 +5,15 @@ import { CategoryPicker } from '@/components/CategoryPicker';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProgressBar, usageColor } from '@/components/ProgressBar';
 import { SegmentedToggle } from '@/components/SegmentedToggle';
-import { errorMessage } from '@/components/States';
 import { TextField } from '@/components/TextField';
 import { relativeDay, toYmd } from '@/lib/dates';
 import { formatINR, paiseToInput, parseRupees } from '@/lib/money';
-import { useCategories, useCreateTransaction } from '@/lib/queries';
+import { useCategories } from '@/lib/queries';
 import type { Category, Draft, NeedOrWant, Transaction } from '@/lib/types';
 import { categoryColor, colors, radii, spacing, typography } from '@/theme';
 
 import { CompactLine } from './Bubbles';
-import type { InputSource } from './model';
+import type { DraftEdits } from './model';
 
 const NW: { value: NeedOrWant; label: string }[] = [
   { value: 'NEED', label: 'Need' },
@@ -24,14 +22,15 @@ const NW: { value: NeedOrWant; label: string }[] = [
 
 interface Props {
   draft: Draft;
-  rawInputId: number;
-  source: InputSource;
   confirmed: Transaction | null;
+  confirming?: boolean;
+  error?: string | null;
   undone?: boolean;
-  onConfirmed: (tx: Transaction) => void;
+  /** The chat screen owns the POST so its outcome lands even if this card scrolls away. */
+  onConfirm: (edits: DraftEdits) => void;
 }
 
-export function DraftCard({ draft, rawInputId, source, confirmed, undone, onConfirmed }: Props) {
+export function DraftCard({ draft, confirmed, confirming, error, undone, onConfirm }: Props) {
   if (confirmed) {
     return (
       <CompactLine
@@ -43,14 +42,11 @@ export function DraftCard({ draft, rawInputId, source, confirmed, undone, onConf
       />
     );
   }
-  return <PendingDraft draft={draft} rawInputId={rawInputId} source={source} onConfirmed={onConfirmed} />;
+  return <PendingDraft draft={draft} confirming={confirming} error={error} onConfirm={onConfirm} />;
 }
 
-function PendingDraft({ draft, rawInputId, source, onConfirmed }: Omit<Props, 'confirmed'>) {
+function PendingDraft({ draft, confirming, error, onConfirm }: Omit<Props, 'confirmed' | 'undone'>) {
   const categories = useCategories();
-  const create = useCreateTransaction();
-  // One id per card so a retried confirm is idempotent server-side.
-  const [txId] = useState(() => Crypto.randomUUID());
   const [nw, setNw] = useState<NeedOrWant | null>(draft.needOrWant);
   const [editing, setEditing] = useState(false);
   const [amount, setAmount] = useState(paiseToInput(draft.amountPaise));
@@ -73,20 +69,7 @@ function PendingDraft({ draft, rawInputId, source, onConfirmed }: Omit<Props, 'c
       return;
     }
     setLocalError(null);
-    create.mutate(
-      {
-        id: txId,
-        amountPaise,
-        categoryId,
-        merchant: merchant.trim() || undefined,
-        note: draft.note ?? undefined,
-        spentAt: draft.spentAt,
-        needOrWant: nw ?? undefined,
-        source,
-        rawInputId,
-      },
-      { onSuccess: onConfirmed },
-    );
+    onConfirm({ amountPaise, categoryId, merchant: merchant.trim() || undefined, needOrWant: nw ?? undefined });
   };
 
   const today = toYmd(new Date());
@@ -136,14 +119,14 @@ function PendingDraft({ draft, rawInputId, source, onConfirmed }: Omit<Props, 'c
           </View>
         ) : null}
         <SegmentedToggle options={NW} value={nw} onChange={setNw} label="Need or want" />
-        {localError || create.error ? <Text style={styles.error}>{localError ?? errorMessage(create.error)}</Text> : null}
+        {localError || error ? <Text style={styles.error}>{localError ?? error}</Text> : null}
         <View style={styles.buttons}>
-          <PrimaryButton label="Confirm" onPress={confirm} loading={create.isPending} style={styles.flex} />
+          <PrimaryButton label="Confirm" onPress={confirm} loading={confirming} style={styles.flex} />
           <PrimaryButton
             label={editing ? 'Done' : 'Edit'}
             variant="secondary"
             onPress={() => setEditing((e) => !e)}
-            disabled={create.isPending}
+            disabled={confirming}
             style={styles.editBtn}
           />
         </View>

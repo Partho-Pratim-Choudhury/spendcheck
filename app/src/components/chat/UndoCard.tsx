@@ -1,10 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { errorMessage } from '@/components/States';
-import { ApiError } from '@/lib/api';
 import { formatINR } from '@/lib/money';
-import { useDeleteTransaction } from '@/lib/queries';
 import type { UndoCandidate } from '@/lib/types';
 import { colors, spacing } from '@/theme';
 
@@ -15,7 +12,10 @@ interface Props {
   text: string;
   candidate: UndoCandidate;
   state: UndoState;
-  onRemoved: () => void;
+  removing?: boolean;
+  error?: string | null;
+  /** The chat screen owns the DELETE so its outcome lands even if this card scrolls away. */
+  onRemove: () => void;
   onKept: () => void;
 }
 
@@ -25,38 +25,25 @@ function describe(c: UndoCandidate) {
 }
 
 /** UNDO is confirm-first: the server only proposes a spend; Remove deletes it. */
-export function UndoCard({ text, candidate, state, onRemoved, onKept }: Props) {
-  const del = useDeleteTransaction();
-
+export function UndoCard({ text, candidate, state, removing, error, onRemove, onKept }: Props) {
   if (state === 'removed') return <BotBubble text={`Removed ${describe(candidate)}`} />;
   if (state === 'kept') return <BotBubble text="Kept it." />;
-
-  const remove = () =>
-    del.mutate(candidate.transactionId, {
-      onSuccess: onRemoved,
-      // Already gone (e.g. deleted from the Spends tab) — same end state.
-      onError: (e) => {
-        if (e instanceof ApiError && e.status === 404) onRemoved();
-      },
-    });
-
-  const failed = del.error && !(del.error instanceof ApiError && del.error.status === 404);
 
   return (
     <View style={styles.row}>
       <View style={styles.bot}>
         <Text style={styles.text}>{text}</Text>
-        {failed ? <Text style={styles.error}>{errorMessage(del.error)}</Text> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
         <View style={styles.buttons}>
           <PrimaryButton
             label="Remove"
             variant="outline"
-            onPress={remove}
-            loading={del.isPending}
+            onPress={onRemove}
+            loading={removing}
             style={styles.flex}
             accessibilityLabel={`Remove ${describe(candidate)}`}
           />
-          <PrimaryButton label="Keep" variant="secondary" onPress={onKept} disabled={del.isPending} style={styles.flex} />
+          <PrimaryButton label="Keep" variant="secondary" onPress={onKept} disabled={removing} style={styles.flex} />
         </View>
       </View>
     </View>

@@ -1,35 +1,26 @@
 import { Feather } from '@expo/vector-icons';
-import * as Crypto from 'expo-crypto';
-import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProgressBar } from '@/components/ProgressBar';
-import { errorMessage } from '@/components/States';
 import { verdictMeta } from '@/components/VerdictBadge';
-import { addDays, friendlyDate, toYmd } from '@/lib/dates';
+import { friendlyDate } from '@/lib/dates';
 import { formatINR } from '@/lib/money';
-import { DEFER_REMINDER, scheduleDeferReminder } from '@/lib/notifications';
-import { useCreateTransaction, useDecision } from '@/lib/queries';
-import type { Draft, Transaction, Verdict } from '@/lib/types';
+import type { Verdict } from '@/lib/types';
 import { colors, radii, spacing, typography } from '@/theme';
 
 import { CompactLine } from './Bubbles';
-import type { InputSource, VerdictOutcome } from './model';
+import type { VerdictAction, VerdictOutcome } from './model';
 
 interface Props {
   verdict: Verdict;
-  draft: Draft | null;
-  rawInputId: number;
-  source: InputSource;
   outcome: VerdictOutcome | null;
+  busy?: VerdictAction | null;
+  error?: string | null;
   undone?: boolean;
-  onOutcome: (o: VerdictOutcome) => void;
+  /** The chat screen owns the requests so their outcome lands even if this card scrolls away. */
+  onDecide: (action: VerdictAction) => void;
 }
-
-type Busy = 'skip' | 'buy' | 'defer' | null;
-
-const DEFER_DAYS = 3;
 
 export function VerdictCard(props: Props) {
   const { verdict: v, outcome, undone } = props;
@@ -70,51 +61,8 @@ function Outcome({ icon, text }: { icon: keyof typeof Feather.glyphMap; text: st
   );
 }
 
-function Pending({ verdict: v, draft, rawInputId, source, onOutcome }: Props) {
-  const decide = useDecision();
-  const create = useCreateTransaction();
-  const [txId] = useState(() => Crypto.randomUUID());
-  const [busy, setBusy] = useState<Busy>(null);
-  const [error, setError] = useState<string | null>(null);
+function Pending({ verdict: v, busy, error, onDecide }: Props) {
   const m = verdictMeta[v.level];
-
-  const run = async (kind: Exclude<Busy, null>) => {
-    setBusy(kind);
-    setError(null);
-    try {
-      if (kind === 'skip') {
-        await decide.mutateAsync({ checkId: v.checkId, body: { decision: 'SKIPPED' } });
-        onOutcome({ decision: 'SKIPPED' });
-      } else if (kind === 'defer') {
-        await decide.mutateAsync({ checkId: v.checkId, body: { decision: 'DEFERRED' } });
-        const remindOn = addDays(toYmd(new Date()), DEFER_DAYS);
-        const reminded = await scheduleDeferReminder(DEFER_REMINDER.title, DEFER_REMINDER.body, DEFER_DAYS);
-        onOutcome({ decision: 'DEFERRED', reminded, remindOn });
-      } else {
-        const tx: Transaction = await create.mutateAsync({
-          id: txId,
-          amountPaise: draft?.amountPaise ?? v.amountPaise,
-          categoryId: draft?.categoryId ?? v.categoryId,
-          merchant: draft?.merchant ?? undefined,
-          note: draft?.note ?? undefined,
-          spentAt: draft?.spentAt ?? new Date().toISOString(),
-          needOrWant: draft?.needOrWant ?? undefined,
-          source,
-          rawInputId,
-        });
-        try {
-          await decide.mutateAsync({ checkId: v.checkId, body: { decision: 'PROCEEDED', transactionId: tx.id } });
-        } catch {
-          // The spend is logged; a missing decision link only affects stats.
-        }
-        onOutcome({ decision: 'PROCEEDED', tx });
-      }
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(null);
-    }
-  };
 
   const used = v.categorySpentPaise + v.amountPaise;
   const leftAfter = v.categoryLeftPaise - v.amountPaise;
@@ -134,7 +82,7 @@ function Pending({ verdict: v, draft, rawInputId, source, onOutcome }: Props) {
           </View>
           <Text style={styles.message}>{v.message}</Text>
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <PrimaryButton label="Log it" onPress={() => void run('buy')} loading={busy === 'buy'} disabled={!!busy} />
+          <PrimaryButton label="Log it" onPress={() => onDecide('buy')} loading={busy === 'buy'} disabled={!!busy} />
         </View>
       </View>
     );
@@ -188,7 +136,7 @@ function Pending({ verdict: v, draft, rawInputId, source, onOutcome }: Props) {
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <PrimaryButton
             label={`Skip it — save ${formatINR(v.amountPaise)}`}
-            onPress={() => void run('skip')}
+            onPress={() => onDecide('skip')}
             loading={busy === 'skip'}
             disabled={!!busy}
           />
@@ -196,7 +144,7 @@ function Pending({ verdict: v, draft, rawInputId, source, onOutcome }: Props) {
             <PrimaryButton
               label="Buy anyway"
               variant="secondary"
-              onPress={() => void run('buy')}
+              onPress={() => onDecide('buy')}
               loading={busy === 'buy'}
               disabled={!!busy}
               style={styles.flex}
@@ -204,7 +152,7 @@ function Pending({ verdict: v, draft, rawInputId, source, onOutcome }: Props) {
             <PrimaryButton
               label="Ask in 3 days"
               variant="secondary"
-              onPress={() => void run('defer')}
+              onPress={() => onDecide('defer')}
               loading={busy === 'defer'}
               disabled={!!busy}
               style={styles.flex}
