@@ -9,10 +9,10 @@ import { IconButton } from '@/components/IconButton';
 import { MoneyText } from '@/components/MoneyText';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { monthName, periodLabel } from '@/lib/dates';
-import { peakWantsWeekday, splitPct } from '@/lib/insights';
-import { formatINR } from '@/lib/money';
-import { usePlans, useReport } from '@/lib/queries';
-import type { MonthlyReport, PlanSummary } from '@/lib/types';
+import { onTrackToSavePaise, peakWantsWeekday, splitPct } from '@/lib/insights';
+import { formatINR, type Rounding } from '@/lib/money';
+import { useDashboard, usePlans, useReport } from '@/lib/queries';
+import type { Dashboard, MonthlyReport, PlanSummary } from '@/lib/types';
 import { categoryColor, colors, radii, spacing, typography } from '@/theme';
 
 export default function ReportsScreen() {
@@ -24,6 +24,8 @@ export default function ReportsScreen() {
   // Wait for the plan list so the report is fetched once, under the id it will actually show.
   const report = useReport(effectiveId, plans.isSuccess && effectiveId !== null);
   const idx = list.findIndex((p) => p.id === effectiveId);
+  // Only the current plan's "Saved" needs the dashboard's projection (usually already cached by Home).
+  const dashboard = useDashboard();
 
   const refresh = () => {
     void plans.refetch();
@@ -56,7 +58,7 @@ export default function ReportsScreen() {
           ) : !report.data ? (
             <EmptyState icon="bar-chart-2" title="No report for this month" />
           ) : (
-            <ReportBody r={report.data} />
+            <ReportBody r={report.data} dashboard={dashboard.data ?? null} />
           )}
         </>
       )}
@@ -83,15 +85,22 @@ function MonthPicker({ plan, onPrev, onNext }: { plan: PlanSummary | null; onPre
   );
 }
 
-function ReportBody({ r }: { r: MonthlyReport }) {
+function ReportBody({ r, dashboard }: { r: MonthlyReport; dashboard: Dashboard | null }) {
   const t = r.totals;
   const spentAny = t.spentPaise > 0;
+  // Mid-period, totals.savedPaise counts everything not yet spent as saved; show the projection instead.
+  const live = r.plan.status === 'ACTIVE' && dashboard?.plan.id === r.plan.id ? dashboard.month : null;
+  const onTrack = live ? onTrackToSavePaise(t.savingsTargetPaise, live.discretionaryPaise, live.projectedPaise) : null;
   return (
     <>
       <View style={styles.tiles}>
         <Tile label="Spent" paise={t.spentPaise} sub={`of ${formatINR(t.discretionaryPaise)}`} />
-        <Tile label="Saved" paise={t.savedPaise} sub={`target ${formatINR(t.savingsTargetPaise)}`} tone={t.savedPaise >= t.savingsTargetPaise ? 'good' : 'warn'} />
-        <Tile label="Pauses" paise={r.pausesSavedPaise} sub={`${r.skippedCount} skipped`} tone="good" />
+        {onTrack !== null ? (
+          <Tile label="On track to save" paise={onTrack} round="down" sub="projected" tone={onTrack >= t.savingsTargetPaise ? 'good' : 'warn'} />
+        ) : (
+          <Tile label="Saved" paise={t.savedPaise} round="down" sub={`target ${formatINR(t.savingsTargetPaise)}`} tone={t.savedPaise >= t.savingsTargetPaise ? 'good' : 'warn'} />
+        )}
+        <Tile label="Pauses" paise={r.pausesSavedPaise} round="down" sub={`${r.skippedCount} skipped`} tone="good" />
       </View>
       {!spentAny ? (
         <EmptyState icon="pie-chart" title="No spends this month" body="Charts fill in as you log spends." />
@@ -120,12 +129,24 @@ function ReportBody({ r }: { r: MonthlyReport }) {
   );
 }
 
-function Tile({ label, paise, sub, tone }: { label: string; paise: number; sub: string; tone?: 'good' | 'warn' }) {
+function Tile({
+  label,
+  paise,
+  sub,
+  tone,
+  round,
+}: {
+  label: string;
+  paise: number;
+  sub: string;
+  tone?: 'good' | 'warn';
+  round?: Rounding;
+}) {
   const color = tone === 'good' ? colors.verdict.green.text : tone === 'warn' ? colors.verdict.amber.text : colors.ink;
   return (
     <View style={styles.tile}>
       <Text style={styles.tileLabel}>{label.toUpperCase()}</Text>
-      <MoneyText paise={paise} style={[styles.tileValue, { color }]} />
+      <MoneyText paise={paise} round={round} style={[styles.tileValue, { color }]} />
       <Text style={styles.caption} numberOfLines={1}>
         {sub}
       </Text>
@@ -160,7 +181,7 @@ function WhereItWent({ r }: { r: MonthlyReport }) {
                 <View style={styles.overRow}>
                   <Feather name="alert-triangle" size={12} color={colors.verdict.red.text} />
                   <Text style={styles.overText}>
-                    {formatINR(c.spentPaise - c.limitPaise)} over {formatINR(c.limitPaise)} limit
+                    {formatINR(c.spentPaise - c.limitPaise, 'up')} over {formatINR(c.limitPaise)} limit
                   </Text>
                 </View>
               ) : c.limitPaise > 0 ? (

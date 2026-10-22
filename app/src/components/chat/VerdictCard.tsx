@@ -103,7 +103,7 @@ function Pending({ verdict: v, busy, error, onDecide }: Props) {
             <Text style={styles.barText}>
               {v.categoryName}:{' '}
               <Text style={[styles.barNum, typography.amount]}>
-                {leftAfter >= 0 ? `${formatINR(leftAfter)} left after` : `${formatINR(-leftAfter)} over after`}
+                {leftAfter >= 0 ? `${formatINR(leftAfter, 'down')} left after` : `${formatINR(-leftAfter, 'up')} over after`}
               </Text>{' '}
               · limit {formatINR(v.categoryLimitPaise)}
             </Text>
@@ -127,7 +127,7 @@ function Pending({ verdict: v, busy, error, onDecide }: Props) {
             <View style={styles.tile}>
               <Text style={styles.tileLabel}>SAFE / DAY</Text>
               <Text style={[styles.tileValue, typography.amount]}>
-                {formatINR(v.safePerDayBeforePaise)} → <Text style={{ color: m.text }}>{formatINR(v.safePerDayAfterPaise)}</Text>
+                {formatINR(v.safePerDayBeforePaise, 'down')} → <Text style={{ color: m.text }}>{formatINR(v.safePerDayAfterPaise, 'down')}</Text>
               </Text>
               <Text style={styles.tileSub}>before → after</Text>
             </View>

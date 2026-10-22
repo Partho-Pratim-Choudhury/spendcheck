@@ -26,7 +26,7 @@ import {
 import { UndoCard } from '@/components/chat/UndoCard';
 import { VerdictCard } from '@/components/chat/VerdictCard';
 import { errorMessage } from '@/components/States';
-import { ApiError, isNetworkError } from '@/lib/api';
+import { ApiError, isNetworkError, serverDetail } from '@/lib/api';
 import { addDays, toYmd } from '@/lib/dates';
 import { deleteLocalFile } from '@/lib/files';
 import { DEFER_REMINDER, scheduleDeferReminder } from '@/lib/notifications';
@@ -53,9 +53,10 @@ const INTRO =
 function inputErrorText(e: unknown): string {
   if (isNetworkError(e)) return e.title === 'Request timed out' ? 'That took too long. Check your connection and retry.' : 'Can’t reach the server right now.';
   if (e instanceof ApiError) {
-    if (e.status === 503) return 'The assistant isn’t configured on the server yet.';
+    // 502/503 carry actionable causes (no API key, no credits, upstream down) — prefer the server's words.
+    if (e.status === 503) return serverDetail(e) ?? 'The assistant isn’t configured on the server yet.';
     if (e.status === 404) return 'Server is out of date — restart the API.';
-    if (e.status === 502) return 'I couldn’t understand that just now (the AI service failed).';
+    if (e.status === 502) return serverDetail(e) ?? 'I couldn’t understand that just now (the AI service failed).';
     if (e.status === 400) return e.detail || 'That input wasn’t accepted.';
     return e.detail || 'Something went wrong.';
   }

@@ -1,4 +1,5 @@
 import { WEEKDAY_NAMES_MON_FIRST } from './dates';
+import type { Category, Transaction } from './types';
 
 export interface WeekdayInsight {
   /** 0 = Monday. */
@@ -40,4 +41,30 @@ export function usageTone(spent: number, limit: number): 'ok' | 'warn' | 'over' 
   if (pct >= 100) return 'over';
   if (pct >= 75) return 'warn';
   return 'ok';
+}
+
+/**
+ * Split a spend list into variable (NEED/WANT categories) and FIXED totals by category kind, so the
+ * headline matches Home's "spent". Spends whose category isn't in `categories` count as variable.
+ */
+export function splitFixedSpends(
+  txs: Pick<Transaction, 'amountPaise' | 'categoryId'>[],
+  categories: Pick<Category, 'id' | 'kind'>[],
+): { variablePaise: number; fixedPaise: number } {
+  const fixedIds = new Set(categories.filter((c) => c.kind === 'FIXED').map((c) => String(c.id)));
+  let variablePaise = 0;
+  let fixedPaise = 0;
+  for (const t of txs) {
+    if (fixedIds.has(String(t.categoryId))) fixedPaise += t.amountPaise;
+    else variablePaise += t.amountPaise;
+  }
+  return { variablePaise, fixedPaise };
+}
+
+/**
+ * What an ACTIVE plan is on track to save: the savings target plus whatever of the discretionary
+ * budget the current pace leaves unspent (negative when projected overspend eats into it), floored at 0.
+ */
+export function onTrackToSavePaise(savingsTargetPaise: number, discretionaryPaise: number, projectedPaise: number): number {
+  return Math.max(0, savingsTargetPaise + discretionaryPaise - projectedPaise);
 }

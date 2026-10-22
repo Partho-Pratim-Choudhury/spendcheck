@@ -49,7 +49,7 @@ export default function SummaryScreen() {
             />
             <Text style={styles.muted}>
               {q.data.count} {q.data.count === 1 ? 'spend' : 'spends'}
-              {q.data.overPaise > 0 ? ` · ${formatINR(q.data.overPaise)} over` : ''}
+              {q.data.overPaise > 0 ? ` · ${formatINR(q.data.overPaise, 'up')} over` : ''}
             </Text>
           </Card>
           <Card>
@@ -60,13 +60,13 @@ export default function SummaryScreen() {
             </Text>
             <Text style={styles.muted}>
               At this pace: {formatINR(q.data.month.projectedPaise)}
-              {q.data.month.savingsAtRiskPaise > 0 ? ` · ${formatINR(q.data.month.savingsAtRiskPaise)} from savings` : ''}
+              {q.data.month.savingsAtRiskPaise > 0 ? ` · ${formatINR(q.data.month.savingsAtRiskPaise, 'up')} from savings` : ''}
             </Text>
           </Card>
           <Card>
             <View style={styles.tileRow}>
               <Text style={styles.tileLabel}>PAUSES SAVED</Text>
-              <MoneyText paise={q.data.pausesSavedPaise} style={styles.tileValue} />
+              <MoneyText paise={q.data.pausesSavedPaise} round="down" style={styles.tileValue} />
             </View>
           </Card>
           <PrimaryButton label="See today’s spends" variant="secondary" onPress={() => router.push('/transactions')} />

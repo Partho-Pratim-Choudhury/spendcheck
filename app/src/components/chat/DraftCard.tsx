@@ -91,7 +91,7 @@ function PendingDraft({ draft, confirming, error, onConfirm }: Omit<Props, 'conf
           </View>
         ) : (
           <>
-            <Text style={[styles.amount, typography.amount]}>{formatINR(amountPaise)}</Text>
+            <Text style={[styles.amount, typography.amount]}>{formatINR(amountPaise, 'exact')}</Text>
             <View style={styles.metaRow}>
               <View style={[styles.catChip, { backgroundColor: `${chipColor}1F` }]}>
                 <Text style={[styles.catChipText, { color: chipColor }]}>{categoryName}</Text>

@@ -38,7 +38,7 @@ export function ErrorBubble({ text, onRetry, disabled }: { text: string; onRetry
       <View style={[styles.bot, styles.botMuted]}>
         <View style={styles.voiceRow}>
           <Feather name="cloud-off" size={14} color={colors.muted} />
-          <Text style={[styles.botText, styles.mutedText, styles.flex]}>{text}</Text>
+          <Text style={[styles.botText, styles.mutedText, styles.shrink]}>{text}</Text>
         </View>
         {onRetry ? (
           <Pressable
@@ -101,7 +101,8 @@ export function CompactLine({
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
+  // Not flex: 1 — its 0 basis makes the shrink-to-fit bubble measure the text as ~0 wide (one word per line).
+  shrink: { flexShrink: 1 },
   row: { flexDirection: 'row', paddingHorizontal: spacing.lg, marginVertical: 4 },
   right: { justifyContent: 'flex-end' },
   user: {

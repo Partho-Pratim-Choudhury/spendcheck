@@ -27,10 +27,10 @@ export function ChatHeader() {
         <View
           style={[styles.pill, over && styles.pillOver]}
           accessible
-          accessibilityLabel={over ? `Over today's safe spend by ${formatINR(-left)}` : `Safe to spend today: ${formatINR(left)} left`}>
+          accessibilityLabel={over ? `Over today's safe spend by ${formatINR(-left, 'up')}` : `Safe to spend today: ${formatINR(left, 'down')} left`}>
           <Text style={[styles.pillLabel, over && styles.pillTextOver]}>{over ? 'OVER TODAY' : 'SAFE TODAY'}</Text>
           <Text style={[styles.pillValue, over && styles.pillTextOver]}>
-            {formatINR(Math.abs(left))}
+            {formatINR(Math.abs(left), over ? 'up' : 'down')}
             {over ? '' : ' left'}
           </Text>
         </View>

@@ -76,7 +76,7 @@ function Hero({ d }: { d: Dashboard }) {
         </Pressable>
       </View>
       <Text style={styles.heroLabel}>{over ? 'Over today’s safe spend' : 'Safe to spend today'}</Text>
-      <MoneyText paise={Math.abs(today.leftPaise)} style={[styles.heroAmount, over && { color: '#FFB4B8' }]} />
+      <MoneyText paise={Math.abs(today.leftPaise)} round={over ? 'up' : 'down'} style={[styles.heroAmount, over && { color: '#FFB4B8' }]} />
       <Text style={styles.heroSub}>
         of {formatINR(today.budgetPaise)} · spent {formatINR(today.spentPaise)} today
       </Text>
@@ -88,7 +88,7 @@ function Hero({ d }: { d: Dashboard }) {
       />
       <View style={styles.heroTile}>
         <Text style={styles.heroTileLabel}>PAUSES SAVED</Text>
-        <MoneyText paise={d.pausesSavedPaise} style={styles.heroTileValue} />
+        <MoneyText paise={d.pausesSavedPaise} round="down" style={styles.heroTileValue} />
         {d.skippedCount > 0 ? (
           <Text style={styles.heroTileNote}>
             {d.skippedCount} {d.skippedCount === 1 ? 'spend' : 'spends'} skipped
@@ -118,7 +118,7 @@ function MonthCard({ d }: { d: Dashboard }) {
         <View style={styles.warnRow} accessibilityRole="alert">
           <Feather name="alert-triangle" size={16} color={colors.verdict.amber.text} />
           <Text style={styles.warnText}>
-            At this pace: {formatINR(m.projectedPaise)} · {formatINR(m.savingsAtRiskPaise)} from savings
+            At this pace: {formatINR(m.projectedPaise)} · {formatINR(m.savingsAtRiskPaise, 'up')} from savings
           </Text>
         </View>
       ) : null}
@@ -147,7 +147,7 @@ function CategoriesCard({ categories }: { categories: DashboardCategory[] }) {
                 {c.name}
               </Text>
               <Text style={[styles.catLeft, typography.amount, { color: statusText[c.status] }]}>
-                {c.leftPaise < 0 ? `${formatINR(-c.leftPaise)} over` : `${formatINR(c.leftPaise)} left`}
+                {c.leftPaise < 0 ? `${formatINR(-c.leftPaise, 'up')} over` : `${formatINR(c.leftPaise, 'down')} left`}
                 <Text style={styles.muted}> / {formatINR(c.limitPaise)}</Text>
               </Text>
             </View>
@@ -169,7 +169,7 @@ function GoalCard({ goal }: { goal: Goal }) {
     <Card>
       <CardTitle>{goal.name}</CardTitle>
       <Text style={styles.muted}>
-        <Text style={[styles.goalSaved, typography.amount]}>{formatINR(goal.savedPaise)}</Text> of{' '}
+        <Text style={[styles.goalSaved, typography.amount]}>{formatINR(goal.savedPaise, 'down')}</Text> of{' '}
         {formatINR(goal.targetPaise)} · {Math.round(goal.progressPct)}%
       </Text>
       <ProgressBar value={goal.progressPct / 100} color={colors.verdict.green.text} label={`${goal.name} progress`} />

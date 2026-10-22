@@ -59,6 +59,17 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The server's own ProblemDetail `detail`, or null when apiFetch had to fall back (no detail,
+ * a non-JSON body from a proxy, or a network error).
+ */
+export function serverDetail(e: ApiError): string | null {
+  if (e.status === 0) return null;
+  const d = e.detail.trim();
+  if (!d || d === e.title || d === `Request failed with status ${e.status}`) return null;
+  return d;
+}
+
 /** status 0 = never reached the server (config / network / timeout). */
 export const isNetworkError = (e: unknown): e is ApiError => e instanceof ApiError && e.status === 0;
 

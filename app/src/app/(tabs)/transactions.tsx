@@ -8,6 +8,7 @@ import { MoneyText } from '@/components/MoneyText';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { TransactionEditSheet } from '@/components/TransactionEditSheet';
 import { dayHeaderLabel, formatTime, groupByDay, toYmd } from '@/lib/dates';
+import { splitFixedSpends } from '@/lib/insights';
 import { formatINR } from '@/lib/money';
 import { useCategories, useSpendsRange, useTransactions } from '@/lib/queries';
 import type { Category, Transaction, TransactionQuery } from '@/lib/types';
@@ -45,19 +46,26 @@ export default function TransactionsScreen() {
       })),
     [tx.data, today],
   );
-  const periodTotal = (tx.data ?? []).reduce((s, t) => s + t.amountPaise, 0);
+  // Headline = NEED+WANT so it matches Home's "spent"; FIXED (rent, EMI) is called out separately.
+  const { variablePaise, fixedPaise } = useMemo(
+    () => splitFixedSpends(tx.data ?? [], categories.data ?? []),
+    [tx.data, categories.data],
+  );
 
   return (
     <View style={styles.screen}>
       <View style={styles.top}>
         <Text style={styles.total}>
-          <Text style={styles.totalAmount}>{formatINR(periodTotal)}</Text>
+          <Text style={styles.totalAmount}>{formatINR(variablePaise)}</Text>
           <Text style={styles.muted}>
             {' '}
             {range.fromPlan ? 'this period' : 'last 30 days'}
             {filter.key !== 'all' ? ` · ${filter.label}` : ''}
           </Text>
         </Text>
+        {fixedPaise > 0 ? (
+          <Text style={styles.fixedLine}>+ {formatINR(fixedPaise)} fixed costs (rent, EMI…)</Text>
+        ) : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           {filters.map((f) => (
             <Chip key={f.key} label={f.label} selected={f.key === filter.key} onPress={() => setFilterKey(f.key)} />
@@ -141,6 +149,7 @@ const styles = StyleSheet.create({
   total: { paddingHorizontal: spacing.lg, fontVariant: ['tabular-nums'] },
   totalAmount: { fontSize: 22, fontWeight: '700', color: colors.ink },
   muted: { fontSize: 14, color: colors.muted },
+  fixedLine: { paddingHorizontal: spacing.lg, fontSize: 13, color: colors.muted, fontVariant: ['tabular-nums'] },
   chips: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   pad: { padding: spacing.lg },
   list: { padding: spacing.lg, paddingTop: spacing.sm, gap: 0, flexGrow: 1 },

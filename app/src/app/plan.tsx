@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Card, CardTitle } from '@/components/Card';
@@ -31,12 +32,15 @@ export default function PlanScreen() {
   const categories = useCategories();
   const { user, logout, serverUrl, changeServer } = useAuth();
   const insets = useSafeAreaInsets();
+  // KeyboardAvoidingView measures itself relative to the screen, not the window; offset by the
+  // stack header so the overlap with the keyboard isn't under-counted (inputs left hidden).
+  const headerHeight = useHeaderHeight();
 
   const loading = plan.isPending || categories.isPending;
   const error = plan.error ?? categories.error;
 
   return (
-    <KeyboardAvoidingView behavior="padding" style={styles.flex}>
+    <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={headerHeight} style={styles.flex}>
       <ScrollView
         style={styles.screen}
         contentContainerStyle={[styles.content, { paddingBottom: spacing.xl + insets.bottom }]}
@@ -235,9 +239,9 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
 
       <View style={styles.computed} accessibilityLiveRegion="polite">
         <Text style={styles.computedLabel}>Left to spend this month</Text>
-        <Text style={[styles.computedBig, discretionary < 0 && { color: '#FFB4B8' }]}>{formatINR(discretionary)}</Text>
+        <Text style={[styles.computedBig, discretionary < 0 && { color: '#FFB4B8' }]}>{formatINR(discretionary, 'down')}</Text>
         <Text style={styles.computedSub}>
-          Per day {formatINR(perDay)} · {days} days
+          Per day {formatINR(perDay, 'down')} · {days} days
         </Text>
       </View>
 
@@ -250,9 +254,9 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
             color={allocTone.text}
           />
           <Text style={[styles.allocText, { color: allocTone.text }]}>
-            {formatINR(allocated)} of {formatINR(Math.max(0, discretionary))} allocated
-            {allocated < discretionary ? ` · ${formatINR(discretionary - allocated)} free` : ''}
-            {allocated > discretionary ? ` · ${formatINR(allocated - discretionary)} over` : ''}
+            {formatINR(allocated)} of {formatINR(Math.max(0, discretionary), 'down')} allocated
+            {allocated < discretionary ? ` · ${formatINR(discretionary - allocated, 'down')} free` : ''}
+            {allocated > discretionary ? ` · ${formatINR(allocated - discretionary, 'up')} over` : ''}
           </Text>
         </View>
         <View style={styles.grid}>
@@ -395,12 +399,12 @@ function GoalsCard() {
           key={g.id}
           onPress={() => setEditing(g)}
           accessibilityRole="button"
-          accessibilityLabel={`${g.name}, ${formatINR(g.savedPaise)} of ${formatINR(g.targetPaise)}. Edit`}
+          accessibilityLabel={`${g.name}, ${formatINR(g.savedPaise, 'down')} of ${formatINR(g.targetPaise)}. Edit`}
           style={styles.goalRow}>
           <View style={styles.goalTop}>
             <Text style={styles.amountLabel}>{g.name}</Text>
             <Text style={[styles.caption, typography.amount]}>
-              {formatINR(g.savedPaise)} / {formatINR(g.targetPaise)}
+              {formatINR(g.savedPaise, 'down')} / {formatINR(g.targetPaise)}
             </Text>
           </View>
           <ProgressBar value={g.progressPct / 100} color={colors.verdict.green.text} height={6} />

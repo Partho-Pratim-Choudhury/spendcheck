@@ -1,8 +1,8 @@
 import { Feather } from '@expo/vector-icons';
-import { type ComponentRef, useRef, useState } from 'react';
+import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,6 +25,16 @@ export default function LoginScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  // The ScrollView brings a focused input into view, but not the Test button below the Server
+  // field — so while that field is focused, scroll the (last) server section fully into view.
+  const serverFocused = useRef(false);
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      if (serverFocused.current) scrollRef.current?.scrollToEnd({ animated: true });
+    });
+    return () => sub.remove();
+  }, []);
 
   // Server settings: collapsed when a URL is already known, unless the user asked to change it.
   const [serverOpen, setServerOpen] = useState(serverSettingsRequested || !serverUrl);
@@ -87,8 +97,10 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      {/* 'padding' on both platforms, as the chat screen and sheets already use: under Android
+          edge-to-edge the window isn't resized for the keyboard, so this view must make room. */}
+      <KeyboardAvoidingView style={styles.flex} behavior="padding">
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <Text style={typography.title} accessibilityRole="header">
               SpendCheck
@@ -189,6 +201,14 @@ export default function LoginScreen() {
                     keyboardType="url"
                     inputMode="url"
                     returnKeyType="done"
+                    onFocus={() => {
+                      serverFocused.current = true;
+                      // Keyboard already up (moved from another field): no keyboardDidShow will fire.
+                      if (Keyboard.isVisible()) scrollRef.current?.scrollToEnd({ animated: true });
+                    }}
+                    onBlur={() => {
+                      serverFocused.current = false;
+                    }}
                     accessibilityLabel="Server"
                     accessibilityLabelledBy="serverLabel"
                     editable={!submitting && !testing}
@@ -207,7 +227,7 @@ export default function LoginScreen() {
                 </View>
                 <PrimaryButton
                   label="Test"
-                  variant="outline"
+                  variant="secondary"
                   onPress={onTest}
                   loading={testing}
                   disabled={submitting || testing}
