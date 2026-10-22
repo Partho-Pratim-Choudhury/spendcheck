@@ -1,7 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { apiFetch, isNetworkError, setAuthToken, setUnauthorizedHandler } from './api';
+import { apiFetch, DEFAULT_API_URL, getApiUrl, isNetworkError, setApiUrl, setAuthToken, setUnauthorizedHandler } from './api';
+import { normaliseServerUrl, SERVER_URL_KEY } from './serverUrl';
 import type { LoginResponse, User } from './types';
 
 const TOKEN_KEY = 'spendcheck.token';
@@ -17,6 +18,14 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   /** Replace the cached user after a profile change (e.g. salary day). */
   updateUser: (user: User) => void;
+  /** Backend origin in use (stored override, else the build-time default); null if none. */
+  serverUrl: string | null;
+  /** Use and persist an already-normalised server URL. */
+  saveServerUrl: (url: string) => Promise<void>;
+  /** Sign out and open the login screen with server settings expanded. */
+  changeServer: () => Promise<void>;
+  /** Login screen should start with server settings expanded (set by changeServer). */
+  serverSettingsRequested: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -35,6 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [serverUrl, setServerUrlState] = useState<string | null>(getApiUrl);
+  const [serverSettingsRequested, setServerSettingsRequested] = useState(false);
 
   const signOutLocal = useCallback(async () => {
     setAuthToken(null);
@@ -60,6 +71,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Server URL first, so /me goes to the user's chosen server. A bad/missing value keeps the default.
+      try {
+        const stored = normaliseServerUrl(await SecureStore.getItemAsync(SERVER_URL_KEY));
+        const url = stored.ok ? stored.url : DEFAULT_API_URL;
+        setApiUrl(url);
+        if (!cancelled) setServerUrlState(url);
+      } catch {
+        // Secure store unavailable: stay on the build-time default.
+      }
       try {
         const [storedToken, expiresAt] = await Promise.all([
           SecureStore.getItemAsync(TOKEN_KEY),
@@ -104,16 +124,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(res.token);
     setToken(res.token);
     setUser(res.user);
+    setServerSettingsRequested(false);
     setStatus('signedIn');
   }, []);
+
+  const saveServerUrl = useCallback(async (url: string) => {
+    setApiUrl(url);
+    setServerUrlState(url);
+    try {
+      await SecureStore.setItemAsync(SERVER_URL_KEY, url);
+    } catch {
+      // Still used for this session; just won't survive a restart.
+    }
+  }, []);
+
+  const changeServer = useCallback(async () => {
+    setServerSettingsRequested(true);
+    await signOutLocal();
+  }, [signOutLocal]);
 
   const logout = useCallback(() => signOutLocal(), [signOutLocal]);
 
   const updateUser = useCallback((u: User) => setUser(u), []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, token, login, logout, updateUser }),
-    [status, user, token, login, logout, updateUser],
+    () => ({
+      status,
+      user,
+      token,
+      login,
+      logout,
+      updateUser,
+      serverUrl,
+      saveServerUrl,
+      changeServer,
+      serverSettingsRequested,
+    }),
+    [status, user, token, login, logout, updateUser, serverUrl, saveServerUrl, changeServer, serverSettingsRequested],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

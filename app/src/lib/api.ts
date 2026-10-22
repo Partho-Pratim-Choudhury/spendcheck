@@ -1,11 +1,45 @@
+import { normaliseServerUrl } from './serverUrl';
 import type { ProblemDetail } from './types';
 
-/** Raw value from .env (inlined at build time — must be accessed as a literal). */
+/** Build-time default from .env (inlined at build time — must be accessed as a literal). */
 const RAW_API_URL = process.env.EXPO_PUBLIC_API_URL;
+const envUrl = normaliseServerUrl(RAW_API_URL);
 
-/** Backend origin, e.g. http://192.168.1.10:8077 — null when not configured. */
-export const API_URL: string | null = RAW_API_URL?.trim() ? RAW_API_URL.trim().replace(/\/+$/, '') : null;
-export const API_BASE: string | null = API_URL ? `${API_URL}/api/v1` : null;
+/** Backend origin baked into this build, e.g. http://192.168.1.10:8077 — null when not configured. */
+export const DEFAULT_API_URL: string | null = envUrl.ok ? envUrl.url : null;
+
+// --- runtime server URL (set by AuthProvider from SecureStore, or by the login screen) ---------
+
+let apiUrl: string | null = DEFAULT_API_URL;
+
+/** Current backend origin (no trailing slash, no /api/v1) — null when not configured. */
+export function getApiUrl(): string | null {
+  return apiUrl;
+}
+
+/** Point all subsequent requests at a new origin. Pass an already-normalised URL (see serverUrl.ts). */
+export function setApiUrl(url: string | null): void {
+  apiUrl = url;
+}
+
+const HEALTH_TIMEOUT_MS = 5_000;
+
+/** GET {url}/actuator/health (outside /api/v1, unauthenticated) — true on any 2xx within 5 s. */
+export async function checkServerHealth(url: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${url}/actuator/health`, {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -74,11 +108,13 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
   const { body, query, auth = true, headers, timeoutMs = REQUEST_TIMEOUT_MS, ...init } = opts;
   const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
 
-  if (!API_BASE) {
+  // Snapshot so error messages name the server this request actually went to.
+  const baseUrl = apiUrl;
+  if (!baseUrl) {
     throw new ApiError({
       status: 0,
-      title: 'API URL not configured',
-      detail: 'EXPO_PUBLIC_API_URL is not set. Copy .env.example to .env, set your laptop IP, and restart Expo.',
+      title: 'Server not configured',
+      detail: 'No server address set. Enter it under "Server settings" on the sign-in screen.',
     });
   }
 
@@ -103,7 +139,7 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
   let res: Response;
   let text: string;
   try {
-    res = await fetch(buildUrl(API_BASE, path, query), {
+    res = await fetch(buildUrl(`${baseUrl}/api/v1`, path, query), {
       ...init,
       headers: finalHeaders,
       body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
@@ -118,8 +154,8 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
       status: 0,
       title: timedOut ? 'Request timed out' : 'Network error',
       detail: timedOut
-        ? `${API_URL} did not respond within ${Math.round(timeoutMs / 1000)}s.`
-        : `Can't reach server at ${API_URL}. Check the backend is running and your phone is on the same network.`,
+        ? `${baseUrl} did not respond within ${Math.round(timeoutMs / 1000)}s.`
+        : `Can't reach server at ${baseUrl}. Check the backend is running and your phone is on the same network.`,
     });
   } finally {
     clearTimeout(timer);

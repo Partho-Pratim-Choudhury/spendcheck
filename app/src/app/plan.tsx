@@ -29,7 +29,7 @@ import { colors, radii, spacing, typography } from '@/theme';
 export default function PlanScreen() {
   const plan = useCurrentPlan();
   const categories = useCategories();
-  const { user, logout } = useAuth();
+  const { user, logout, serverUrl, changeServer } = useAuth();
   const insets = useSafeAreaInsets();
 
   const loading = plan.isPending || categories.isPending;
@@ -62,6 +62,14 @@ export default function PlanScreen() {
             // Reminders are cancelled by the root layout on every sign-out.
             onPress={() => void logout()}
           />
+          <View style={styles.serverRow}>
+            <Text style={styles.serverUrl} numberOfLines={1} selectable>
+              Server: {serverUrl ?? 'not set'}
+            </Text>
+            <Pressable onPress={() => void changeServer()} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.changeServer}>Change server</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -535,4 +543,7 @@ const styles = StyleSheet.create({
   goalTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: spacing.sm },
   account: { marginTop: spacing.xl, gap: spacing.sm },
   signedInAs: { fontSize: 14, color: colors.muted, textAlign: 'center' },
+  serverRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing.sm },
+  serverUrl: { ...typography.caption, flexShrink: 1 },
+  changeServer: { fontSize: 12, color: colors.primary, fontWeight: '600' },
 });

@@ -1,7 +1,9 @@
+import { Feather } from '@expo/vector-icons';
 import { type ComponentRef, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,29 +13,66 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { API_URL, ApiError } from '@/lib/api';
+import { ApiError, checkServerHealth } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { normaliseServerUrl, SERVER_URL_PLACEHOLDER } from '@/lib/serverUrl';
 import { colors, radii, spacing, typography } from '@/theme';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, serverUrl, saveServerUrl, serverSettingsRequested } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
 
-  const configError = API_URL
-    ? null
-    : 'EXPO_PUBLIC_API_URL is not set. Copy .env.example to .env, set your laptop IP, then restart Expo (npx expo start -c).';
+  // Server settings: collapsed when a URL is already known, unless the user asked to change it.
+  const [serverOpen, setServerOpen] = useState(serverSettingsRequested || !serverUrl);
+  const [serverInput, setServerInput] = useState(serverUrl ?? '');
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-  const canSubmit = !configError && email.trim().length > 0 && password.length > 0 && !submitting;
+  const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
+
+  function onServerChange(text: string) {
+    setServerInput(text);
+    setServerError(null);
+    setTestResult(null);
+  }
+
+  /** Normalise the field; on failure show the inline error and expand the section. */
+  function resolveServerUrl(): string | null {
+    const r = normaliseServerUrl(serverInput);
+    if (!r.ok) {
+      setServerError(r.error);
+      setServerOpen(true);
+      return null;
+    }
+    setServerInput(r.url);
+    setServerError(null);
+    return r.url;
+  }
+
+  async function onTest() {
+    const url = resolveServerUrl();
+    if (!url) return;
+    setTesting(true);
+    setTestResult(null);
+    const reachable = await checkServerHealth(url);
+    if (reachable) await saveServerUrl(url);
+    setTestResult(reachable ? { ok: true, message: 'Server reachable' } : { ok: false, message: `Can't reach ${url}` });
+    setTesting(false);
+  }
 
   async function onSubmit() {
     if (!canSubmit) return;
+    const url = resolveServerUrl();
+    if (!url) return;
     setSubmitting(true);
     setError(null);
     try {
+      if (url !== serverUrl) await saveServerUrl(url);
       await login(email, password);
       // On success the root guard swaps to the tabs automatically.
     } catch (e) {
@@ -107,18 +146,76 @@ export default function LoginScreen() {
               />
             </View>
 
-            {(configError ?? error) ? (
+            {error ? (
               <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
-                {configError ?? error}
+                {error}
               </Text>
             ) : null}
 
             <PrimaryButton label="Sign in" onPress={onSubmit} loading={submitting} disabled={!canSubmit} />
           </View>
 
-          <Text style={styles.apiUrl} selectable>
-            API: {API_URL ?? 'not configured'}
-          </Text>
+          <View style={styles.serverSection}>
+            <Pressable
+              onPress={() => setServerOpen((o) => !o)}
+              style={styles.serverToggle}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Server settings"
+              accessibilityState={{ expanded: serverOpen }}>
+              <Feather name={serverOpen ? 'chevron-down' : 'chevron-right'} size={16} color={colors.muted} />
+              <Text style={styles.serverToggleLabel}>Server settings</Text>
+              {!serverOpen ? (
+                <Text style={styles.serverSummary} numberOfLines={1}>
+                  {serverUrl ?? 'not set'}
+                </Text>
+              ) : null}
+            </Pressable>
+
+            {serverOpen ? (
+              <View style={styles.card}>
+                <View style={styles.field}>
+                  <Text style={typography.label} nativeID="serverLabel">
+                    Server
+                  </Text>
+                  <TextInput
+                    style={[styles.input, serverError ? styles.inputError : null]}
+                    value={serverInput}
+                    onChangeText={onServerChange}
+                    placeholder={SERVER_URL_PLACEHOLDER}
+                    placeholderTextColor={colors.muted}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                    inputMode="url"
+                    returnKeyType="done"
+                    accessibilityLabel="Server"
+                    accessibilityLabelledBy="serverLabel"
+                    editable={!submitting && !testing}
+                  />
+                  {serverError ? (
+                    <Text style={styles.fieldError} accessibilityRole="alert">
+                      {serverError}
+                    </Text>
+                  ) : testResult ? (
+                    <Text
+                      style={testResult.ok ? styles.testOk : styles.fieldError}
+                      accessibilityLiveRegion="polite">
+                      {testResult.message}
+                    </Text>
+                  ) : null}
+                </View>
+                <PrimaryButton
+                  label="Test"
+                  variant="outline"
+                  onPress={onTest}
+                  loading={testing}
+                  disabled={submitting || testing}
+                  accessibilityLabel="Test server connection"
+                />
+              </View>
+            ) : null}
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -157,5 +254,11 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     fontSize: 14,
   },
-  apiUrl: { ...typography.caption, textAlign: 'center' },
+  inputError: { borderColor: colors.verdict.red.text },
+  fieldError: { fontSize: 13, color: colors.verdict.red.text },
+  testOk: { fontSize: 13, color: colors.verdict.green.text },
+  serverSection: { gap: spacing.md },
+  serverToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', maxWidth: '100%' },
+  serverToggleLabel: { fontSize: 14, color: colors.muted, fontWeight: '500' },
+  serverSummary: { ...typography.caption, flexShrink: 1 },
 });
