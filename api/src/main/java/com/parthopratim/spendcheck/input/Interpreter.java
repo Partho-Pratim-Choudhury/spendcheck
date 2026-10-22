@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,11 +34,26 @@ public final class Interpreter {
     public static final String MISSING_CATEGORY = "category";
     public static final String MISSING_DATE = "date";
     public static final String MISSING_CONFIRMATION = "confirmation";
+    public static final String MISSING_QUERY = "query";
+
+    static final String QUERY_CHOICES = "What would you like to know — what's left in a category, total spent, or "
+            + "safe to spend today?";
 
     private static final int MAX_MERCHANT = 200;
     private static final int MAX_NOTE = 1000;
     private static final int CATEGORY_CHOICES = 4;
     private static final int FUZZY_MIN_LENGTH = 5;
+    /** Larger amounts are not a spend, and would cost real work to round (BigDecimal with a huge exponent). */
+    private static final BigDecimal MAX_RUPEES = new BigDecimal("1e8");
+    /** Below half a paisa every amount rounds to 0. */
+    private static final BigDecimal MIN_RUPEES = new BigDecimal("0.005");
+
+    /**
+     * Seeded merchant aliases a misheard or mistyped merchant may be snapped onto. Generic aliases ("lunch",
+     * "shoes", "dinner") are never snap targets: a one-letter difference there is usually a different word.
+     */
+    static final Set<String> BRAND_ALIASES = Set.of("swiggy", "zomato", "dmart", "blinkit", "zepto", "bigbasket",
+            "myntra", "amazon", "flipkart", "uber", "ola", "rapido", "netflix", "pvr");
 
     /** Brands whose casing title-case gets wrong. Keys: lower case, no spaces/punctuation. */
     private static final Map<String, String> BRAND_CASING = Map.ofEntries(
@@ -67,7 +83,7 @@ public final class Interpreter {
         boolean unsure = confidence < confidenceThreshold;
         return switch (intent) {
             case LOG_EXPENSE, PRE_CHECK -> spend(intent, e, text, active, today, unsure);
-            case QUERY -> query(e, text, active);
+            case QUERY -> query(e, text, active, unsure);
             case UNDO -> new Interpretation(intent, null, null, null, null, null, null, null, unsure
                     ? new FollowUp("Should I remove your last entry? Say “undo” to confirm.",
                     List.of(MISSING_CONFIRMATION))
@@ -139,8 +155,15 @@ public final class Interpreter {
                 MAX_NOTE), date, e.needOrWant(), null, followUp);
     }
 
-    /** Rupees to paise, half-up. */
+    /** Rupees to paise, half-up; beyond ±{@link #MAX_RUPEES} saturates to ±{@link Long#MAX_VALUE} (invalid). */
     public static long toPaise(BigDecimal rupees) {
+        BigDecimal magnitude = rupees.abs();   // compareTo looks at exponents first: cheap even for 1e999999999
+        if (magnitude.compareTo(MAX_RUPEES) > 0) {
+            return rupees.signum() > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+        }
+        if (magnitude.compareTo(MIN_RUPEES) < 0) {
+            return 0;
+        }
         BigDecimal paise = rupees.movePointRight(2).setScale(0, RoundingMode.HALF_UP);
         return paise.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0 ? Long.MAX_VALUE
                 : paise.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) < 0 ? Long.MIN_VALUE : paise.longValue();
@@ -165,17 +188,22 @@ public final class Interpreter {
 
     // ---------- queries ----------
 
-    private static Interpretation query(Extraction e, String text, List<InputCategory> active) {
+    private static Interpretation query(Extraction e, String text, List<InputCategory> active, boolean unsure) {
+        if (unsure) {
+            return new Interpretation(InputIntent.QUERY, null, null, null, null, null, null, e.queryType(),
+                    new FollowUp("Not sure I got that. " + QUERY_CHOICES, List.of(MISSING_CONFIRMATION)));
+        }
         String asked = e.queryCategory() != null && !e.queryCategory().isBlank() ? e.queryCategory() : e.category();
         QueryType type = e.queryType();
         InputCategory category = null;
         if (type == null || type == QueryType.CATEGORY_LEFT) {
             category = resolveCategory(text, null, asked, active);
-            if (type == null) {
-                type = category != null ? QueryType.CATEGORY_LEFT : QueryType.TOTAL_SPENT;
+            if (type == null && category != null) {
+                type = QueryType.CATEGORY_LEFT;   // "travel?" — a category alone asks what's left there
             }
         }
-        FollowUp followUp = type == QueryType.CATEGORY_LEFT && category == null
+        FollowUp followUp = type == null ? new FollowUp(QUERY_CHOICES, List.of(MISSING_QUERY))
+                : type == QueryType.CATEGORY_LEFT && category == null
                 ? new FollowUp("Which category — " + choices(active) + "?", List.of(MISSING_CATEGORY))
                 : null;
         return new Interpretation(InputIntent.QUERY, null, category, null, null, null, null, type, followUp);
@@ -184,28 +212,49 @@ public final class Interpreter {
     // ---------- category ----------
 
     /**
-     * Category names said in the text, then the user's aliases found in the text/merchant, then the LLM's pick,
-     * then a one-typo alias match. Among several hits the LLM's pick wins if it is one of them, else the earliest.
+     * The LLM's pick wins when it is a valid (active) category, unless the extracted merchant is exactly one of the
+     * user's aliases ("Swiggy" → Food): a merchant mapping is the user's own rule. Words in the free text never
+     * override a valid pick — "paid the dinner bill" is not Bills, "dog food" is not Food. Without a valid pick:
+     * category names said in the text, then aliases in the text/merchant (earliest wins), then a one-typo alias.
      * Archived categories are never chosen.
      */
     public static InputCategory resolveCategory(String text, String merchant, String llmCategory,
                                                 List<InputCategory> categories) {
         List<InputCategory> active = categories.stream().filter(c -> !c.archived()).toList();
-        String hay = (nullToEmpty(text) + " " + nullToEmpty(merchant)).toLowerCase(Locale.ROOT);
+        InputCategory byMerchant = merchantAlias(merchant, active);
+        if (byMerchant != null) {
+            return byMerchant;
+        }
         InputCategory llm = byName(llmCategory, active);
-
-        InputCategory byNameInText = pick(hits(hay, active, c -> List.of(c.name())), llm);
-        if (byNameInText != null) {
-            return byNameInText;
-        }
-        InputCategory byAlias = pick(hits(hay, active, InputCategory::aliases), llm);
-        if (byAlias != null) {
-            return byAlias;
-        }
         if (llm != null) {
             return llm;
         }
+        String hay = (nullToEmpty(text) + " " + nullToEmpty(merchant)).toLowerCase(Locale.ROOT);
+        InputCategory byNameInText = earliest(hits(hay, active, c -> List.of(c.name())));
+        if (byNameInText != null) {
+            return byNameInText;
+        }
+        InputCategory byAlias = earliest(hits(hay, active, InputCategory::aliases));
+        if (byAlias != null) {
+            return byAlias;
+        }
         return fuzzyAlias(hay, active);
+    }
+
+    /** The category one of whose aliases is the whole merchant (case/punctuation-insensitive), if any. */
+    private static InputCategory merchantAlias(String merchant, List<InputCategory> active) {
+        if (merchant == null || merchant.isBlank()) {
+            return null;
+        }
+        String mk = key(merchant);
+        for (InputCategory c : active) {
+            for (String alias : c.aliases()) {
+                if (alias != null && !mk.isEmpty() && key(alias).equals(mk)) {
+                    return c;
+                }
+            }
+        }
+        return null;
     }
 
     private record Hit(InputCategory category, int position) {}
@@ -238,14 +287,8 @@ public final class Interpreter {
         return Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(stem) + "(?:s|es)?(?![\\p{L}\\p{N}])");
     }
 
-    private static InputCategory pick(List<Hit> hits, InputCategory llm) {
-        if (hits.isEmpty()) {
-            return null;
-        }
-        if (llm != null && hits.stream().anyMatch(h -> h.category().id() == llm.id())) {
-            return llm;
-        }
-        return hits.stream().min(Comparator.comparingInt(Hit::position)).orElseThrow().category();
+    private static InputCategory earliest(List<Hit> hits) {
+        return hits.stream().min(Comparator.comparingInt(Hit::position)).map(Hit::category).orElse(null);
     }
 
     private static InputCategory byName(String name, List<InputCategory> active) {
@@ -277,8 +320,9 @@ public final class Interpreter {
     // ---------- merchant ----------
 
     /**
-     * Trims, drops a "merchant" that is just a category name, snaps a one-typo match onto the user's alias
-     * ("zommato" → "Zomato") and fixes casing.
+     * Trims, drops a "merchant" that is just a category name, snaps a one-typo match onto one of the user's brand
+     * aliases ("zommato" → "Zomato"; only {@link #BRAND_ALIASES}, never for words under five letters, never when
+     * the merchant already is one of the user's aliases) and fixes casing.
      */
     public static String cleanMerchant(String raw, List<InputCategory> categories) {
         String m = blankToNull(raw);
@@ -294,12 +338,13 @@ public final class Interpreter {
             return null;
         }
         String key = key(m);
-        if (key.length() >= FUZZY_MIN_LENGTH) {
+        boolean exact = categories.stream().flatMap(c -> c.aliases().stream()).anyMatch(a -> key(a).equals(key));
+        if (!exact && key.length() >= FUZZY_MIN_LENGTH) {
             for (InputCategory c : categories) {
                 for (String alias : c.aliases()) {
                     String ak = key(alias);
-                    if (!ak.equals(key) && ak.length() >= FUZZY_MIN_LENGTH && withinOneEdit(key, ak)) {
-                        return truncate(casing(alias), MAX_MERCHANT);
+                    if (ak.length() >= FUZZY_MIN_LENGTH && BRAND_ALIASES.contains(ak) && withinOneEdit(key, ak)) {
+                        return truncate(casing(alias.toLowerCase(Locale.ROOT)), MAX_MERCHANT);
                     }
                 }
             }
@@ -307,16 +352,16 @@ public final class Interpreter {
         return truncate(casing(m), MAX_MERCHANT);
     }
 
+    /** Known brand casing, else title case for all-lower-case input; anything with capitals is kept as typed. */
     private static String casing(String m) {
         String known = BRAND_CASING.get(key(m));
         if (known != null) {
             return known;
         }
-        boolean mixed = !m.equals(m.toLowerCase(Locale.ROOT)) && !m.equals(m.toUpperCase(Locale.ROOT));
-        if (mixed) {
-            return m;
+        if (!m.equals(m.toLowerCase(Locale.ROOT))) {
+            return m;   // "H&M", "BMW", "McKinsey": the user's own capitals
         }
-        return List.of(m.toLowerCase(Locale.ROOT).split(" ")).stream()
+        return List.of(m.split(" ")).stream()
                 .map(w -> w.isEmpty() ? w : Character.toUpperCase(w.charAt(0)) + w.substring(1))
                 .collect(Collectors.joining(" "));
     }

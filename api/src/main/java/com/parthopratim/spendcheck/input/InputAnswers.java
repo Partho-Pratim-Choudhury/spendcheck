@@ -132,7 +132,7 @@ public class InputAnswers {
         if (goal.isEmpty()) {
             return "You don't have a savings goal yet — add one in Goals.";
         }
-        GoalResponse g = GoalResponse.from(goal.get(), userTime.today(userTime.zone(userId)));
+        GoalResponse g = GoalResponse.from(goal.get(), userTime.today(userId));
         StringBuilder sb = new StringBuilder(g.name()).append(": ").append(Inr.format(g.savedPaise())).append(" of ")
                 .append(Inr.format(g.targetPaise())).append(" saved (").append(g.progressPct()).append("%).");
         if (g.savedPaise() >= g.targetPaise()) {

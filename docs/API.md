@@ -55,7 +55,8 @@ Goal = { id, name, targetPaise, savedPaise, monthlyContributionPaise, targetDate
          progressPct, onTrackDate|null }   // onTrackDate = projected completion at current contribution
 ```
 - `GET /goals`, `POST /goals` `{name, targetPaise, savedPaise?, monthlyContributionPaise, targetDate?}` → 201,
-  `PATCH /goals/{id}` partial → 200, `DELETE /goals/{id}` → 204.
+  `PATCH /goals/{id}` partial → 200 (null = unchanged; send `clearTargetDate: true` to remove the
+  target date — together with `targetDate` → 400), `DELETE /goals/{id}` → 204.
 - The **primary goal** is the one with the earliest `targetDate` (nulls last, then lowest id).
 
 ## Dashboard
@@ -106,16 +107,21 @@ InputResult = {
                 needOrWant|null, after: { categorySpentPaise, categoryLimitPaise } },
   verdict|null: Verdict,         // PRE_CHECK; draft also present so "Buy anyway" can create it
   answer|null: { text },         // QUERY, UNDO, OTHER
-  undoneTransactionId|null,      // UNDO
-  followUp|null: { question, missing: [string] }  // missing/low-confidence fields
+  undoCandidate|null: { transactionId, amountPaise, categoryName, merchant|null, spentAt },
+                                 // UNDO: proposed, NOT cancelled; app confirms via DELETE /transactions/{id}
+  undoneTransactionId|null,      // deprecated, always null
+  followUp|null: { question, missing: [string] }  // "amount"|"category"|"date"|"query"|"confirmation"
 }
 ```
 - `POST /inputs/text` `{ text }` (1..500 chars) → 200 InputResult.
-- `POST /inputs/voice` multipart field `audio` (m4a/aac/mp4/webm/ogg/wav, ≤ 2 MB) → 200 InputResult
+- `POST /inputs/voice` multipart field `audio` (m4a/mp4/mp3/mpeg/webm/ogg/wav/flac/aac, ≤ 2 MB;
+  unknown `audio/*` or octet-stream falls back to the filename extension) → 200 InputResult
   with `transcript`. 400 if empty/too large/unsupported; 502 ProblemDetail if speech-to-text fails.
-- Drafts are **never saved** by `/inputs/*`. The app confirms with `POST /transactions` (source
-  TEXT/VOICE, `rawInputId`). Only UNDO writes (cancels the user's most recent CONFIRMED transaction
-  created in the last 24 h; if none, answer says so).
+- `/inputs/*` **never writes** transactions. The app confirms drafts with `POST /transactions`
+  (source TEXT/VOICE, `rawInputId`). UNDO only *proposes* the user's most recent CONFIRMED
+  transaction created via chat (source TEXT/VOICE) in the last 24 h as `undoCandidate`, with answer
+  "Remove ₹450 · Food · Swiggy?"; if none, answer says so. The app shows a Remove button that calls
+  `DELETE /transactions/{id}`.
 - 502 ProblemDetail when the LLM call fails; 503 if `OPENAI_API_KEY` is not configured.
 - Query types answered from the engine: category left, total spent this period, safe to spend
   today, primary goal status. No plan → answer explains a plan is needed.
@@ -129,8 +135,9 @@ InputResult = {
   totals: { incomePaise, fixedPaise, discretionaryPaise, spentPaise, savedPaise,
             savingsTargetPaise, underPlanPaise },   // saved = savingsTarget + (discretionary − spent)
   byCategory: [{ categoryId, name, kind, limitPaise, spentPaise }],   // NEED+WANT, spent desc
-  needsPaise, wantsPaise, untaggedPaise,            // by transaction needOrWant (fallback category kind)
-  topWants: [{ label, count, totalPaise }],         // WANT spends grouped by lower(merchant) or category, top 5
+  needsPaise, wantsPaise, untaggedPaise,            // NEED+WANT categories only; tag falls back to category kind (untagged ≈ 0)
+  topWants: [{ label, count, totalPaise }],         // WANT spends grouped by lower(merchant) or category, top 5;
+                                                    //   label = most frequent original spelling
   pausesSavedPaise, skippedCount,
   wantsByWeekday: [7 numbers, Mon..Sun, paise],
   trend: [{ planId, periodStart, spentPaise, discretionaryPaise }]   // up to last 6 plans incl. this, oldest first
@@ -142,3 +149,10 @@ InputResult = {
 `GET /summary/daily?date=` (default today) →
 `{ date, spentPaise, count, budgetPaise, overPaise, month: {spentPaise, discretionaryPaise, projectedPaise, savingsAtRiskPaise}, pausesSavedPaise, text }`
 — 404 if no plan covers the date.
+
+## Notes
+
+- All user-facing text (verdict messages, answers, summaries) shows whole rupees, rounded half-up
+  (overflow amounts round up). JSON `…Paise` fields are exact.
+- `raw_inputs` (text, transcript, model output) are purged after 90 days
+  (`RAW_INPUT_RETENTION_DAYS`); transactions keep their data with the link nulled.

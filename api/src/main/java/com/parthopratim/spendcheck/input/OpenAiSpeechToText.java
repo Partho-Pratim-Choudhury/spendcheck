@@ -29,12 +29,7 @@ public class OpenAiSpeechToText implements SpeechToText {
                         .baseUrl(OpenAiHttp.baseUrl(baseUrl))
                         .restClientBuilder(OpenAiHttp.restClient(stt.timeout()))
                         .build(),
-                OpenAiAudioTranscriptionOptions.builder()
-                        .model(model)
-                        .language("en")
-                        .responseFormat(OpenAiAudioApi.TranscriptResponseFormat.JSON)
-                        .temperature(0f)
-                        .build(),
+                options(model, null),
                 OpenAiHttp.retry())
                 : null;
     }
@@ -50,14 +45,8 @@ public class OpenAiSpeechToText implements SpeechToText {
                 return filename;
             }
         };
-        OpenAiAudioTranscriptionOptions options = OpenAiAudioTranscriptionOptions.builder()
-                .model(model)
-                .language("en")
-                .responseFormat(OpenAiAudioApi.TranscriptResponseFormat.JSON)
-                .temperature(0f)
-                .prompt(prompt(hints))
-                .build();
-        AudioTranscriptionResponse response = transcriber.call(new AudioTranscriptionPrompt(resource, options));
+        AudioTranscriptionResponse response = transcriber.call(
+                new AudioTranscriptionPrompt(resource, options(model, prompt(hints))));
         if (response == null || response.getResult() == null) {
             throw new IllegalStateException("Transcription returned no result");
         }
@@ -68,6 +57,17 @@ public class OpenAiSpeechToText implements SpeechToText {
     @Override
     public String model() {
         return model;
+    }
+
+    /** The one place the request options are defined: the model's defaults, plus the per-call prompt. */
+    static OpenAiAudioTranscriptionOptions options(String model, String prompt) {
+        return OpenAiAudioTranscriptionOptions.builder()
+                .model(model)
+                .language("en")
+                .responseFormat(OpenAiAudioApi.TranscriptResponseFormat.JSON)
+                .temperature(0f)
+                .prompt(prompt)
+                .build();
     }
 
     static String prompt(List<String> hints) {

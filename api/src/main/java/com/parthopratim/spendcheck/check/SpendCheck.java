@@ -25,7 +25,7 @@ public class SpendCheck {
     @Column(name = "user_id", nullable = false, updatable = false)
     private Long userId;
 
-    @Column(name = "plan_id", updatable = false)
+    @Column(name = "plan_id")
     private Long planId;
 
     @Column(name = "amount_paise", nullable = false, updatable = false)

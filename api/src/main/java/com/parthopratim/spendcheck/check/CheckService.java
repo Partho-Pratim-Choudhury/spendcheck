@@ -4,8 +4,8 @@ import com.parthopratim.spendcheck.auth.UserTime;
 import com.parthopratim.spendcheck.check.CheckDtos.DecisionRequest;
 import com.parthopratim.spendcheck.check.CheckDtos.DecisionResponse;
 import com.parthopratim.spendcheck.check.CheckDtos.VerdictResponse;
-import com.parthopratim.spendcheck.common.ConflictException;
 import com.parthopratim.spendcheck.common.FieldValidationException;
+import com.parthopratim.spendcheck.common.NoActivePlanException;
 import com.parthopratim.spendcheck.common.NotFoundException;
 import com.parthopratim.spendcheck.engine.BudgetEngine;
 import com.parthopratim.spendcheck.engine.BudgetInput;
@@ -50,7 +50,7 @@ public class CheckService {
      * verdict. Shared by {@code POST /checks} and the chat pipeline.
      *
      * @throws FieldValidationException {@code categoryId} unknown, foreign or archived
-     * @throws ConflictException        no active plan
+     * @throws NoActivePlanException    no active plan
      */
     @Transactional
     public VerdictResponse check(long userId, long amountPaise, long categoryId) {
@@ -60,7 +60,7 @@ public class CheckService {
             throw new FieldValidationException("categoryId", "category is archived");
         }
         BudgetPlan plan = plans.activeUpToDate(userId)
-                .orElseThrow(() -> new ConflictException("No active plan; set up a plan first."));
+                .orElseThrow(() -> new NoActivePlanException("No active plan; set up a plan first."));
         ZoneId zone = userTime.zone(userId);
         BudgetInput in = BudgetInputs.input(plan, userTime.today(zone), budgetInputs.spending(plan, zone));
         Verdict v = BudgetEngine.verdict(in, category.getId(), category.getKind(), category.getName(), amountPaise,

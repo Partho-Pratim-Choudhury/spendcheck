@@ -230,20 +230,20 @@ class BudgetEngineTest {
     @CsvSource(nullValues = "null", delimiter = '|', value = {
             // limit | spent | today | amount | level | overflow | reasons (;-separated)                 | message
             "10000 | 6000  | 0     | 2000   | GREEN | 0        |                                          | Fits. Food left after: ₹20.",
-            "10000 | 6000  | 0     | 2001   | AMBER | 0        | half                                     | Careful. Uses more than half of what's left in category. Food left after: ₹19.99.",
+            "10000 | 6000  | 0     | 2001   | AMBER | 0        | half                                     | Careful. Uses more than half of what's left in category. Food left after: ₹20.",
             "10000 | 6000  | 0     | 4000   | AMBER | 0        | half                                     | Careful. Uses more than half of what's left in category. Food left after: ₹0.",
-            "10000 | 6000  | 0     | 4001   | RED   | 1        | category;half                            | Over plan. ₹0.01 more than Food has left — it comes out of savings.",
-            "10000 | 10000 | 0     | 1      | RED   | 1        | category;half                            | Over plan. ₹0.01 more than Food has left — it comes out of savings.",
+            "10000 | 6000  | 0     | 4001   | RED   | 1        | category;half                            | Over plan. ₹1 more than Food has left — it comes out of savings.",
+            "10000 | 10000 | 0     | 1      | RED   | 1        | category;half                            | Over plan. ₹1 more than Food has left — it comes out of savings.",
             "1000  | 1500  | 0     | 100    | RED   | 100      | category;half                            | Over plan. ₹1 more than Food has left — it comes out of savings.",
             "null  | 0     | 0     | 100    | RED   | 100      | category;half                            | Over plan. ₹1 more than Food has left — it comes out of savings.",
             // today budget = (100000 − 6000) / 10 = 9400
             "100000| 6000  | 0     | 9400   | GREEN | 0        |                                          | Fits. Food left after: ₹846.",
-            "100000| 6000  | 0     | 9401   | AMBER | 0        | today                                    | Careful. Over today's safe spend. Food left after: ₹845.99.",
+            "100000| 6000  | 0     | 9401   | AMBER | 0        | today                                    | Careful. Over today's safe spend. Food left after: ₹846.",
             // today budget = (100000 − 6000) / 10 = 9400 with 9000 already spent today
             "100000| 6000  | 9000  | 400    | GREEN | 0        |                                          | Fits. Food left after: ₹936.",
-            "100000| 6000  | 9000  | 401    | AMBER | 0        | today                                    | Careful. Over today's safe spend. Food left after: ₹935.99.",
-            "50000 | 30000 | 9000  | 10001  | AMBER | 0        | today;half                               | Careful. Over today's safe spend. Food left after: ₹99.99.",
-            "50000 | 30000 | 9000  | 20001  | RED   | 1        | category;today;half                      | Over plan. ₹0.01 more than Food has left — it comes out of savings.",
+            "100000| 6000  | 9000  | 401    | AMBER | 0        | today                                    | Careful. Over today's safe spend. Food left after: ₹936.",
+            "50000 | 30000 | 9000  | 10001  | AMBER | 0        | today;half                               | Careful. Over today's safe spend. Food left after: ₹100.",
+            "50000 | 30000 | 9000  | 20001  | RED   | 1        | category;today;half                      | Over plan. ₹1 more than Food has left — it comes out of savings.",
     })
     void verdictBoundaries(Long limit, long spent, long today, long amount, VerdictLevel level, long overflow,
                            String reasons, String message) {
@@ -342,10 +342,14 @@ class BudgetEngineTest {
         GoalInput c = new GoalInput(1, "C", 1, null);
         GoalInput d = new GoalInput(2, "D", 1, LocalDate.of(2026, 12, 1));
         GoalInput e = new GoalInput(3, "E", 1, null);
-        assertThat(BudgetEngine.primaryGoal(List.of(a, b, c, d, e))).contains(d);   // same date: lower id
-        assertThat(BudgetEngine.primaryGoal(List.of(a, c, e))).contains(a);         // dated beats undated
-        assertThat(BudgetEngine.primaryGoal(List.of(e, c))).contains(c);            // all undated: lowest id
-        assertThat(BudgetEngine.primaryGoal(List.of())).isEmpty();
+        assertThat(primary(a, b, c, d, e)).contains(d);   // same date: lower id
+        assertThat(primary(a, c, e)).contains(a);         // dated beats undated
+        assertThat(primary(e, c)).contains(c);            // all undated: lowest id
+        assertThat(primary()).isEmpty();
+    }
+
+    private static Optional<GoalInput> primary(GoalInput... goals) {
+        return java.util.Arrays.stream(goals).min(BudgetEngine.primaryGoalOrder());
     }
 
     @ParameterizedTest(name = "saved {1} of {0} at {2}/month -> {3}% done {4}")
@@ -356,6 +360,9 @@ class BudgetEngineTest {
             "100000, 100000, 0,     100, 2026-10-22",   // reached: today
             "100000, 150000, 0,     100, 2026-10-22",   // capped at 100
             "100000, 0,      0,     0,   null",         // no contribution: no projection
+            "100000, 0,      83,    0,   null",         // 1,205 months: beyond the 100-year horizon
+            "100000, 0,      84,    0,   2126-01-22",   // 1,191 months: still projected
+            "9223372036854775807, 0, 1, 0, null",       // would overflow LocalDate: no projection, no exception
     })
     void goalProgressAndOnTrackDate(long target, long saved, long contribution, int pct, LocalDate onTrack) {
         assertThat(BudgetEngine.progressPct(saved, target)).isEqualTo(pct);

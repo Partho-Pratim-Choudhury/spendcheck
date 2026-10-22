@@ -3,12 +3,20 @@ package com.parthopratim.spendcheck.check;
 import java.time.Instant;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface SpendCheckRepository extends JpaRepository<SpendCheck, Long> {
 
     Optional<SpendCheck> findByIdAndUserId(Long id, Long userId);
+
+    /** Points the user's checks created in {@code [from, to)} at a plan. */
+    @Modifying(flushAutomatically = true)
+    @Query("update SpendCheck c set c.planId = :planId "
+            + "where c.userId = :userId and c.createdAt >= :from and c.createdAt < :to")
+    int assignPlan(@Param("userId") Long userId, @Param("planId") Long planId, @Param("from") Instant from,
+                   @Param("to") Instant to);
 
     /** Count and total of the user's SKIPPED checks made under a plan. */
     @Query("""

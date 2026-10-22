@@ -8,13 +8,18 @@ import com.parthopratim.spendcheck.common.FieldValidationException;
 import com.parthopratim.spendcheck.common.ServiceUnavailableException;
 import com.parthopratim.spendcheck.config.AppProperties;
 import com.parthopratim.spendcheck.ledger.CategoryKind;
+import java.net.ConnectException;
+import java.net.http.HttpConnectTimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.ai.retry.TransientAiException;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.web.client.ResourceAccessException;
 
 /** Error mapping, upload type rules and prompt rendering — no network. */
@@ -100,5 +105,58 @@ class AiPlumbingTest {
                 .isInstanceOf(FieldValidationException.class);
         assertThatThrownBy(() -> InputController.providerFilename("video/mp4", "a.mp4"))
                 .isInstanceOf(FieldValidationException.class);
+        // mp3 aliases, flac, and an unknown audio/* type falling back to an allowed extension
+        assertThat(InputController.providerFilename("audio/mp3", null)).isEqualTo("voice.mp3");
+        assertThat(InputController.providerFilename("audio/x-mp3", "n.bin")).isEqualTo("voice.mp3");
+        assertThat(InputController.providerFilename("audio/flac", null)).isEqualTo("voice.flac");
+        assertThat(InputController.providerFilename("audio/x-caf", "note.m4a")).isEqualTo("voice.m4a");
+        assertThatThrownBy(() -> InputController.providerFilename("audio/3gpp", "note.3gp"))
+                .isInstanceOf(FieldValidationException.class);
+        assertThatThrownBy(() -> InputController.providerFilename("audio/amr", null))
+                .isInstanceOf(FieldValidationException.class);
+    }
+
+    @Test
+    void retryOnlyFastServerOrConnectFailuresOnce() {
+        assertThat(attempts(OpenAiHttp.retry(), new TransientAiException("503 - overloaded"))).isEqualTo(2);
+        assertThat(attempts(OpenAiHttp.retry(), new ResourceAccessException("I/O error",
+                new ConnectException("Connection refused")))).isEqualTo(2);
+        assertThat(attempts(OpenAiHttp.retry(), new ResourceAccessException("I/O error",
+                new HttpConnectTimeoutException("connect timed out")))).isEqualTo(2);
+        // a read timeout already used up the time budget: never retried
+        assertThat(attempts(OpenAiHttp.retry(), new ResourceAccessException("I/O error",
+                new HttpTimeoutException("request timed out")))).isEqualTo(1);
+        assertThat(attempts(OpenAiHttp.retry(), new NonTransientAiException("400 - bad request"))).isEqualTo(1);
+    }
+
+    @Test
+    void slowFailureIsNotRetried() {
+        AtomicInteger calls = new AtomicInteger();
+        assertThatThrownBy(() -> OpenAiHttp.retry(Duration.ofMillis(50)).execute(c -> {
+            calls.incrementAndGet();
+            Thread.sleep(120);
+            throw new TransientAiException("503 - slow");
+        })).isInstanceOf(TransientAiException.class);
+        assertThat(calls).hasValue(1);
+    }
+
+    private static int attempts(RetryTemplate retry, RuntimeException failure) {
+        AtomicInteger calls = new AtomicInteger();
+        assertThatThrownBy(() -> retry.execute(c -> {
+            calls.incrementAndGet();
+            throw failure;
+        })).isSameAs(failure);
+        return calls.get();
+    }
+
+    @Test
+    void sttOptionsShareOneDefinition() {
+        var base = OpenAiSpeechToText.options("m", null);
+        var call = OpenAiSpeechToText.options("m", "hints");
+        assertThat(call.getModel()).isEqualTo(base.getModel()).isEqualTo("m");
+        assertThat(call.getLanguage()).isEqualTo(base.getLanguage()).isEqualTo("en");
+        assertThat(call.getTemperature()).isEqualTo(base.getTemperature()).isZero();
+        assertThat(base.getPrompt()).isNull();
+        assertThat(call.getPrompt()).isEqualTo("hints");
     }
 }

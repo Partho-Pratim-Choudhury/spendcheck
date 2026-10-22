@@ -2,6 +2,9 @@ package com.parthopratim.spendcheck.common;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -26,6 +29,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final Pattern PROVIDER_STATUS = Pattern.compile("^(\\d{3}) - ");
+    private static final Pattern PROVIDER_CODE = Pattern.compile("\"code\"\\s*:\\s*\"([A-Za-z0-9_.\\-]{1,64})\"");
 
     @ExceptionHandler(NotFoundException.class)
     ProblemDetail notFound(NotFoundException ex) {
@@ -39,7 +44,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     ProblemDetail integrity(DataIntegrityViolationException ex) {
-        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+        // only the constraint name: the driver's message/Detail echoes the row's values
+        log.warn("Data integrity violation (constraint={})", constraintName(ex));
         return problem(HttpStatus.CONFLICT, "Conflict", "The request conflicts with existing data.");
     }
 
@@ -50,7 +56,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(BadGatewayException.class)
     ProblemDetail badGateway(BadGatewayException ex) {
-        log.warn("Upstream failure: {}", ex.getCause() != null ? ex.getCause().toString() : ex.getMessage());
+        // status and provider error code only: the provider's body can echo the user's input
+        log.warn("Upstream failure: {}", upstreamSummary(ex.getCause()));
         return problem(HttpStatus.BAD_GATEWAY, "Bad Gateway", ex.getMessage());
     }
 
@@ -104,6 +111,39 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ProblemDetail unexpected(Exception ex) {
         log.error("Unhandled exception", ex);
         return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", "Unexpected error.");
+    }
+
+    static String constraintName(Throwable ex) {
+        for (Throwable t = ex; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof ConstraintViolationException cve && cve.getConstraintName() != null) {
+                return cve.getConstraintName();
+            }
+        }
+        return "unknown";
+    }
+
+    /**
+     * e.g. {@code NonTransientAiException status=429 code=insufficient_quota}. Spring AI reports an HTTP error as
+     * {@code "<status> - <body>"}; anything else (timeouts, our own exceptions) logs its class name only.
+     */
+    static String upstreamSummary(@Nullable Throwable cause) {
+        if (cause == null) {
+            return "unknown";
+        }
+        for (Throwable t = cause; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            String msg = t.getMessage();
+            Matcher status = msg == null ? null : PROVIDER_STATUS.matcher(msg);
+            if (status != null && status.find()) {
+                Matcher code = PROVIDER_CODE.matcher(msg);
+                return t.getClass().getSimpleName() + " status=" + status.group(1)
+                        + (code.find() ? " code=" + code.group(1) : "");
+            }
+        }
+        Throwable root = cause;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        return cause.getClass().getSimpleName() + (root != cause ? " caused by " + root.getClass().getSimpleName() : "");
     }
 
     private static ProblemDetail validationProblem(Map<String, String> errors) {

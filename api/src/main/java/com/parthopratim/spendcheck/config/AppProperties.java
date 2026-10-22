@@ -12,6 +12,7 @@ public record AppProperties(
         @DefaultValue SeedUser seedUser,
         @DefaultValue Llm llm,
         @DefaultValue Stt stt,
+        @DefaultValue RawInputs rawInputs,
         @DefaultValue("Asia/Kolkata") ZoneId tz) {
 
     public record Jwt(String secret, @DefaultValue("7d") Duration ttl) {
@@ -58,6 +59,15 @@ public record AppProperties(
         public Llm {
             if (confidenceThreshold < 0 || confidenceThreshold > 1) {
                 throw new IllegalStateException("spendcheck.llm.confidence-threshold must be between 0 and 1.");
+            }
+        }
+    }
+
+    /** @param retentionDays raw inputs (the user's own words) older than this are deleted daily */
+    public record RawInputs(@DefaultValue("90") int retentionDays) {
+        public RawInputs {
+            if (retentionDays < 1) {
+                throw new IllegalStateException("spendcheck.raw-inputs.retention-days must be at least 1.");
             }
         }
     }

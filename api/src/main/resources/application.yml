@@ -22,6 +22,15 @@ spring:
     openai:
       # The app must boot without a real key; /inputs/* answer 503 until one is set.
       api-key: ${OPENAI_API_KEY:not-set}
+    # AiConfig builds its own OpenAI clients; don't let the starter auto-configure (unused) model beans.
+    model:
+      chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        transcription: none
+        speech: none
   servlet:
     multipart:
       # Voice notes are capped at 2 MB (InputController re-checks); a bigger request is rejected as 400.
@@ -67,3 +76,5 @@ spendcheck:
   stt:
     model: ${STT_MODEL:gpt-4o-mini-transcribe}
     timeout: 20s
+  raw-inputs:
+    retention-days: ${RAW_INPUT_RETENTION_DAYS:90}

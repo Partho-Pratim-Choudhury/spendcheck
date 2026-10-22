@@ -112,7 +112,7 @@ public class ReportService {
 
     @Transactional
     public MonthlyReport monthly(long userId, Long planId) {
-        planService.activeUpToDate(userId);
+        planService.rollForwardIfDue(userId); // so "latest plan" is the current period's
         BudgetPlan plan = (planId != null
                 ? plans.findByIdAndUserId(planId, userId)
                 : plans.findFirstByUserIdOrderByPeriodStartDescIdDesc(userId))
@@ -135,19 +135,33 @@ public class ReportService {
                         c.spentPaise()))
                 .toList();
 
+        // NEED/WANT categories only, like totals.spentPaise, so needs + wants + untagged = spent
         long needs = 0;
         long wants = 0;
         long untagged = 0;
         long[] wantsByWeekday = new long[7];
         Map<String, long[]> wantGroups = new LinkedHashMap<>();
+        Map<String, String> merchantLabels = null;
         for (SpendAggregate a : rows) {
+            if (!a.variable()) {
+                continue;
+            }
             NeedOrWant tag = a.effectiveNeedOrWant();
             if (tag == NeedOrWant.NEED) {
                 needs += a.totalPaise();
             } else if (tag == NeedOrWant.WANT) {
                 wants += a.totalPaise();
                 wantsByWeekday[a.day().getDayOfWeek().getValue() - 1] += a.totalPaise();
-                String label = a.merchantKey() != null ? a.merchantKey() : name(cats, a.categoryId());
+                String label;
+                if (a.merchantKey() != null) {
+                    if (merchantLabels == null) {
+                        merchantLabels = aggregates.merchantLabels(userId, plan.getPeriodStart(), plan.getPeriodEnd(),
+                                zone);
+                    }
+                    label = merchantLabels.getOrDefault(a.merchantKey(), a.merchantKey());
+                } else {
+                    label = name(cats, a.categoryId());
+                }
                 long[] g = wantGroups.computeIfAbsent(label, k -> new long[2]);
                 g[0] += a.count();
                 g[1] += a.totalPaise();
@@ -174,18 +188,17 @@ public class ReportService {
                 trend(userId, plan, zone));
     }
 
-    /** Up to the last six plans up to and including {@code plan}, oldest first; one aggregate query for all. */
+    /**
+     * Up to the last six plans up to and including {@code plan}, oldest first; one query for their limits and one
+     * aggregate query for their spending.
+     */
     private List<TrendPoint> trend(long userId, BudgetPlan plan, ZoneId zone) {
-        List<BudgetPlan> recent = new ArrayList<>(plans
-                .findTop6ByUserIdAndPeriodStartLessThanEqualOrderByPeriodStartDescIdDesc(userId,
-                        plan.getPeriodStart()));
-        if (recent.stream().noneMatch(p -> p.getId().equals(plan.getId()))) {
-            recent.add(0, plan);
-        }
-        List<BudgetPlan> window = recent.stream().limit(TREND_PLANS)
+        List<Long> ids = plans.findTop6ByUserIdAndPeriodStartLessThanEqualOrderByPeriodStartDescIdDesc(userId,
+                plan.getPeriodStart()).stream().map(BudgetPlan::getId).toList();
+        List<BudgetPlan> window = plans.findWithLimitsByIdIn(ids).stream()
                 .sorted(Comparator.comparing(BudgetPlan::getPeriodStart).thenComparing(BudgetPlan::getId))
                 .toList();
-        LocalDate from = window.stream().map(BudgetPlan::getPeriodStart).min(Comparator.naturalOrder()).orElseThrow();
+        LocalDate from = window.getFirst().getPeriodStart();
         LocalDate to = window.stream().map(BudgetPlan::getPeriodEnd).max(Comparator.naturalOrder()).orElseThrow();
         List<SpendAggregate> rows = aggregates.between(userId, from, to, zone);
         return window.stream().map(p -> {
@@ -200,7 +213,7 @@ public class ReportService {
     /** Numbers as of the end of {@code date} (default today): spending after that day is ignored. */
     @Transactional
     public DailySummary daily(long userId, LocalDate date) {
-        planService.activeUpToDate(userId);
+        planService.rollForwardIfDue(userId); // so today is covered even before the nightly job runs
         ZoneId zone = userTime.zone(userId);
         LocalDate today = userTime.today(zone);
         LocalDate day = date != null ? date : today;

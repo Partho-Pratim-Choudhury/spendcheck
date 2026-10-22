@@ -1,6 +1,7 @@
 package com.parthopratim.spendcheck;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -23,6 +24,7 @@ import com.parthopratim.spendcheck.ledger.TransactionRepository;
 import com.parthopratim.spendcheck.ledger.TransactionStatus;
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.HashMap;
@@ -32,9 +34,16 @@ import java.util.UUID;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.image.ImageModel;
+import org.springframework.ai.moderation.ModerationModel;
+import org.springframework.ai.openai.OpenAiAudioSpeechModel;
+import org.springframework.ai.openai.OpenAiAudioTranscriptionModel;
 import org.springframework.ai.retry.NonTransientAiException;
 import org.springframework.ai.retry.TransientAiException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.ResultActions;
@@ -309,25 +318,49 @@ class InputIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.followUp.missing", Matchers.contains("category")));
     }
 
+    @Test
+    void starterModelBeansAreNotAutoConfigured(@Autowired ApplicationContext ctx) {
+        assertThat(ctx.getBeanNamesForType(ChatModel.class)).isEmpty();
+        assertThat(ctx.getBeanNamesForType(EmbeddingModel.class)).isEmpty();
+        assertThat(ctx.getBeanNamesForType(OpenAiAudioTranscriptionModel.class)).isEmpty();
+        assertThat(ctx.getBeanNamesForType(OpenAiAudioSpeechModel.class)).isEmpty();
+        assertThat(ctx.getBeanNamesForType(ImageModel.class)).isEmpty();
+        assertThat(ctx.getBeanNamesForType(ModerationModel.class)).isEmpty();
+    }
+
     // ---------- UNDO ----------
 
     @Test
-    void undoCancelsMostRecentConfirmedTransaction() throws Exception {
+    void undoProposesMostRecentChatSpendAndCancelsNothing() throws Exception {
         TestUser u = newUser(7);
-        UUID older = spend(u, 100 * RUPEE, "Groceries", LocalDate.now(IST).minusDays(1), null, null);
-        UUID latest = spend(u, 450 * RUPEE, "Food", LocalDate.now(IST).minusDays(3), "Swiggy", null);   // created last
+        Instant now = clock.instant();
+        UUID older = spendVia(u, "TEXT", 100 * RUPEE, "Groceries", now.minus(Duration.ofDays(1)), null, null);
+        UUID latest = spendVia(u, "VOICE", 450 * RUPEE, "Food", now.minus(Duration.ofDays(3)), "Swiggy", null);
+        spend(u, 999 * RUPEE, "Shopping", LocalDate.now(IST), null, null);   // newest, but MANUAL: never proposed
         extractor.respond(bare(InputIntent.UNDO));
 
-        text(u, "undo")
-                .andExpect(jsonPath("$.intent").value("UNDO"))
-                .andExpect(jsonPath("$.undoneTransactionId").value(latest.toString()))
-                .andExpect(jsonPath("$.answer.text").value("Removed ₹450 · Food · Swiggy."));
-        assertThat(transactions.findById(latest).orElseThrow().getStatus()).isEqualTo(TransactionStatus.CANCELLED);
+        for (int i = 0; i < 2; i++) {   // asking twice proposes the same spend: nothing was cancelled
+            text(u, "undo")
+                    .andExpect(jsonPath("$.intent").value("UNDO"))
+                    .andExpect(jsonPath("$.undoCandidate.transactionId").value(latest.toString()))
+                    .andExpect(jsonPath("$.undoCandidate.amountPaise").value(45_000))
+                    .andExpect(jsonPath("$.undoCandidate.categoryName").value("Food"))
+                    .andExpect(jsonPath("$.undoCandidate.merchant").value("Swiggy"))
+                    .andExpect(jsonPath("$.undoCandidate.spentAt").exists())
+                    .andExpect(jsonPath("$.undoneTransactionId").value(Matchers.nullValue()))
+                    .andExpect(jsonPath("$.answer.text").value("Remove ₹450 · Food · Swiggy?"));
+        }
+        assertThat(transactions.findById(latest).orElseThrow().getStatus()).isEqualTo(TransactionStatus.CONFIRMED);
 
+        // the app confirms with DELETE; then the next one is proposed
+        mvc.perform(as(u, delete("/api/v1/transactions/" + latest))).andExpect(status().isNoContent());
         text(u, "undo")
-                .andExpect(jsonPath("$.undoneTransactionId").value(older.toString()))
-                .andExpect(jsonPath("$.answer.text").value("Removed ₹100 · Groceries."));
+                .andExpect(jsonPath("$.undoCandidate.transactionId").value(older.toString()))
+                .andExpect(jsonPath("$.undoCandidate.merchant").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.answer.text").value("Remove ₹100 · Groceries?"));
+        mvc.perform(as(u, delete("/api/v1/transactions/" + older))).andExpect(status().isNoContent());
         text(u, "undo")
+                .andExpect(jsonPath("$.undoCandidate").value(Matchers.nullValue()))
                 .andExpect(jsonPath("$.undoneTransactionId").value(Matchers.nullValue()))
                 .andExpect(jsonPath("$.answer.text").value("Nothing recent to undo."));
     }
@@ -336,16 +369,18 @@ class InputIntegrationTest extends IntegrationTestSupport {
     void undoIgnoresTransactionsOlderThan24hAndOtherUsers() throws Exception {
         TestUser u = newUser(7);
         TestUser other = newUser(7);
-        UUID mine = spend(u, 100 * RUPEE, "Food", LocalDate.now(IST), null, null);
-        UUID theirs = spend(other, 200 * RUPEE, "Food", LocalDate.now(IST), null, null);
+        UUID mine = spendVia(u, "TEXT", 100 * RUPEE, "Food", clock.instant(), null, null);
+        UUID theirs = spendVia(other, "TEXT", 200 * RUPEE, "Food", clock.instant(), null, null);
         extractor.respond(bare(InputIntent.UNDO));
 
         clock.set(clock.instant().plus(Duration.ofHours(25)));
-        text(u, "undo").andExpect(jsonPath("$.answer.text").value("Nothing recent to undo."));
+        text(u, "undo")
+                .andExpect(jsonPath("$.undoCandidate").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.answer.text").value("Nothing recent to undo."));
         clock.reset();
 
         TestUser third = newUser(7);
-        text(third, "undo").andExpect(jsonPath("$.undoneTransactionId").value(Matchers.nullValue()));
+        text(third, "undo").andExpect(jsonPath("$.undoCandidate").value(Matchers.nullValue()));
         assertThat(transactions.findById(mine).orElseThrow().getStatus()).isEqualTo(TransactionStatus.CONFIRMED);
         assertThat(transactions.findById(theirs).orElseThrow().getStatus()).isEqualTo(TransactionStatus.CONFIRMED);
     }

@@ -42,6 +42,10 @@ public class UserTime {
         }
     }
 
+    public LocalDate today(long userId) {
+        return today(zone(userId));
+    }
+
     public LocalDate today(User user) {
         return LocalDate.ofInstant(clock.instant(), zone(user));
     }

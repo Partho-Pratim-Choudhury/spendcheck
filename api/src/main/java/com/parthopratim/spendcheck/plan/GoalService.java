@@ -1,6 +1,7 @@
 package com.parthopratim.spendcheck.plan;
 
 import com.parthopratim.spendcheck.auth.UserTime;
+import com.parthopratim.spendcheck.common.FieldValidationException;
 import com.parthopratim.spendcheck.common.NotFoundException;
 import com.parthopratim.spendcheck.engine.BudgetEngine;
 import com.parthopratim.spendcheck.plan.GoalDtos.CreateGoalRequest;
@@ -57,7 +58,12 @@ public class GoalService {
         if (req.monthlyContributionPaise() != null) {
             g.setMonthlyContributionPaise(req.monthlyContributionPaise());
         }
-        if (req.targetDate() != null) {
+        if (Boolean.TRUE.equals(req.clearTargetDate())) {
+            if (req.targetDate() != null) {
+                throw new FieldValidationException("clearTargetDate", "must not be combined with targetDate");
+            }
+            g.setTargetDate(null);
+        } else if (req.targetDate() != null) {
             g.setTargetDate(req.targetDate());
         }
         goals.flush();
@@ -81,6 +87,6 @@ public class GoalService {
     }
 
     private LocalDate today(long userId) {
-        return userTime.today(userTime.zone(userId));
+        return userTime.today(userId);
     }
 }

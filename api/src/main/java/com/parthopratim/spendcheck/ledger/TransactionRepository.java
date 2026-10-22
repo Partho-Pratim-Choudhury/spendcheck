@@ -1,6 +1,7 @@
 package com.parthopratim.spendcheck.ledger;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,10 +24,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     @EntityGraph(attributePaths = "category")
     List<Transaction> findAll(Specification<Transaction> spec, Sort sort);
 
-    /** The user's most recently created transaction in {@code status} created after {@code since}. */
+    /** The user's most recently created transaction in {@code status}, from one of {@code sources}, after {@code since}. */
     @EntityGraph(attributePaths = "category")
-    Optional<Transaction> findFirstByUserIdAndStatusAndCreatedAtAfterOrderByCreatedAtDesc(
-            Long userId, TransactionStatus status, Instant since);
+    Optional<Transaction> findFirstByUserIdAndStatusAndSourceInAndCreatedAtAfterOrderByCreatedAtDesc(
+            Long userId, TransactionStatus status, Collection<TransactionSource> sources, Instant since);
 
     /** Points the user's transactions with {@code from <= spentAt < to} at a plan. */
     @Modifying(flushAutomatically = true)

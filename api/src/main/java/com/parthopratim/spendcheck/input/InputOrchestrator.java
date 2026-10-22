@@ -5,12 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.parthopratim.spendcheck.auth.UserTime;
 import com.parthopratim.spendcheck.check.CheckDtos.VerdictResponse;
 import com.parthopratim.spendcheck.check.CheckService;
-import com.parthopratim.spendcheck.common.ConflictException;
+import com.parthopratim.spendcheck.common.NoActivePlanException;
 import com.parthopratim.spendcheck.config.AppProperties;
 import com.parthopratim.spendcheck.engine.Inr;
 import com.parthopratim.spendcheck.input.InputDtos.Answer;
 import com.parthopratim.spendcheck.input.InputDtos.Draft;
 import com.parthopratim.spendcheck.input.InputDtos.InputResult;
+import com.parthopratim.spendcheck.input.InputDtos.UndoCandidate;
 import com.parthopratim.spendcheck.input.Interpreter.Interpretation;
 import com.parthopratim.spendcheck.ledger.CategoryRepository;
 import com.parthopratim.spendcheck.ledger.TransactionDtos.TransactionResponse;
@@ -30,8 +31,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * The text/voice pipeline: (speech-to-text →) LLM extraction → deterministic {@link Interpreter} → intent
- * handling. Every input is stored in {@code raw_inputs}. Provider calls run outside any DB transaction. Drafts are
- * never saved here; only UNDO writes.
+ * handling. Every input is stored in {@code raw_inputs}. Provider calls run outside any DB transaction. Nothing is
+ * written here but the raw input: drafts are confirmed, and UNDO candidates removed, by the app.
  */
 @Service
 public class InputOrchestrator {
@@ -134,7 +135,7 @@ public class InputOrchestrator {
         }
         return switch (in.intent()) {
             case LOG_EXPENSE -> new InputResult(rawId, in.intent(), transcript, draft(userId, in, zone, today), null,
-                    null, null, null);
+                    null, null, null, null);
             case PRE_CHECK -> preCheck(userId, rawId, transcript, in, zone, today);
             case QUERY -> InputResult.answer(rawId, in.intent(), transcript,
                     answers.answer(userId, in.queryType(), in.category()));
@@ -148,22 +149,26 @@ public class InputOrchestrator {
         Draft draft = draft(userId, in, zone, today);
         try {
             VerdictResponse verdict = checks.check(userId, in.amountPaise(), in.category().id());
-            return new InputResult(rawId, in.intent(), transcript, draft, verdict, null, null, null);
-        } catch (ConflictException noPlan) {
+            return new InputResult(rawId, in.intent(), transcript, draft, verdict, null, null, null, null);
+        } catch (NoActivePlanException noPlan) {
             return new InputResult(rawId, in.intent(), transcript, draft, null, new Answer(NO_PLAN_CHECK), null,
-                    null);
+                    null, null);
         }
     }
 
+    /** Proposes, never cancels: the most recent chat-created spend of the last 24 h, for the app to confirm. */
     private InputResult undo(long userId, long rawId, String transcript) {
-        Optional<TransactionResponse> undone = transactions.undoLatest(userId, userTime.now().minus(UNDO_WINDOW));
-        if (undone.isEmpty()) {
+        Optional<TransactionResponse> latest = transactions.latestUndoable(userId, userTime.now().minus(UNDO_WINDOW));
+        if (latest.isEmpty()) {
             return InputResult.answer(rawId, InputIntent.UNDO, transcript, NOTHING_TO_UNDO);
         }
-        TransactionResponse t = undone.get();
-        String text = "Removed " + Inr.format(t.amountPaise()) + " · " + t.categoryName()
-                + (t.merchant() != null ? " · " + t.merchant() : "") + ".";
-        return new InputResult(rawId, InputIntent.UNDO, transcript, null, null, new Answer(text), t.id(), null);
+        TransactionResponse t = latest.get();
+        String text = "Remove " + Inr.format(t.amountPaise()) + " · " + t.categoryName()
+                + (t.merchant() != null ? " · " + t.merchant() : "") + "?";
+        UndoCandidate candidate = new UndoCandidate(t.id(), t.amountPaise(), t.categoryName(), t.merchant(),
+                t.spentAt());
+        return new InputResult(rawId, InputIntent.UNDO, transcript, null, null, new Answer(text), candidate, null,
+                null);
     }
 
     /** Today's spends are stamped "now"; earlier days at noon in the user's tz. */

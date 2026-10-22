@@ -21,18 +21,23 @@ public final class InputDtos {
             @Pattern(regexp = "(?s).*\\S.*", message = "must not be blank") String text) {}
 
     /** API.md "Text / voice input". Exactly the fields the app reads; absent parts are null. */
+    /** @param undoneTransactionId deprecated, always null: UNDO only proposes an {@code undoCandidate} */
     public record InputResult(
             long rawInputId, InputIntent intent, String transcript, Draft draft, VerdictResponse verdict,
-            Answer answer, UUID undoneTransactionId, FollowUp followUp) {
+            Answer answer, UndoCandidate undoCandidate, UUID undoneTransactionId, FollowUp followUp) {
 
         static InputResult followUp(long rawInputId, InputIntent intent, String transcript, FollowUp followUp) {
-            return new InputResult(rawInputId, intent, transcript, null, null, null, null, followUp);
+            return new InputResult(rawInputId, intent, transcript, null, null, null, null, null, followUp);
         }
 
         static InputResult answer(long rawInputId, InputIntent intent, String transcript, String text) {
-            return new InputResult(rawInputId, intent, transcript, null, null, new Answer(text), null, null);
+            return new InputResult(rawInputId, intent, transcript, null, null, new Answer(text), null, null, null);
         }
     }
+
+    /** The transaction UNDO proposes to remove; the app confirms with {@code DELETE /transactions/{id}}. */
+    public record UndoCandidate(UUID transactionId, long amountPaise, String categoryName, String merchant,
+                                Instant spentAt) {}
 
     /** A spend the app shows for confirmation; never saved by {@code /inputs/*}. */
     public record Draft(

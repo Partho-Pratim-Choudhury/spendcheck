@@ -46,11 +46,39 @@ class InterpreterTest {
     class Categories {
 
         @Test
-        void nameInTextWins() {
-            assertThat(Interpreter.resolveCategory("groceries from blinkit 860", null, "Food", CATS))
+        void nameInTextUsedWithoutValidLlmPick() {
+            assertThat(Interpreter.resolveCategory("groceries from blinkit 860", null, null, CATS))
                     .isEqualTo(GROCERIES);
             assertThat(Interpreter.resolveCategory("paid rent 25000", null, null, CATS)).isEqualTo(RENT);
-            assertThat(Interpreter.resolveCategory("electricity bill 900", null, null, CATS)).isEqualTo(BILLS);
+            assertThat(Interpreter.resolveCategory("electricity bill 900", null, "Nonsense", CATS)).isEqualTo(BILLS);
+        }
+
+        @Test
+        void validLlmPickBeatsWordsInTheText() {
+            // category names/aliases used in another sense
+            assertThat(Interpreter.resolveCategory("paid the dinner bill 1200", null, "Food", CATS)).isEqualTo(FOOD);
+            assertThat(Interpreter.resolveCategory("dog food 400", null, "Shopping", CATS)).isEqualTo(SHOPPING);
+            assertThat(Interpreter.resolveCategory("amazon prime 1499", "Amazon Prime", "Bills", CATS))
+                    .isEqualTo(BILLS);
+            assertThat(Interpreter.resolveCategory("groceries 860", null, "Food", CATS)).isEqualTo(FOOD);
+        }
+
+        @Test
+        void merchantThatIsAnAliasBeatsTheLlm() {
+            assertThat(Interpreter.resolveCategory("swiggy 450", "Swiggy", "Groceries", CATS)).isEqualTo(FOOD);
+            assertThat(Interpreter.resolveCategory("groceries from blinkit 860", "Blinkit", "Food", CATS))
+                    .isEqualTo(GROCERIES);
+            // an alias only inside the merchant's name is not the merchant
+            assertThat(Interpreter.resolveCategory("amazon prime 1499", "Amazon Prime", "Bills", CATS))
+                    .isEqualTo(BILLS);
+        }
+
+        @Test
+        void spendUsesCleanedMerchantForTheMapping() {
+            Interpretation in = run(log("450", "Groceries", "swigy", null), "swigy 450");
+            assertThat(in.merchant()).isEqualTo("Swiggy");
+            assertThat(in.category()).isEqualTo(FOOD);
+            assertThat(run(log("1200", "Food", null, null), "paid the dinner bill 1200").category()).isEqualTo(FOOD);
         }
 
         @Test
@@ -64,10 +92,11 @@ class InterpreterTest {
         }
 
         @Test
-        void llmPickBreaksTiesAmongHitsElseEarliest() {
+        void withoutLlmPickEarliestHitWins() {
             assertThat(Interpreter.resolveCategory("metro card recharge 500", null, "Bills", CATS)).isEqualTo(BILLS);
-            assertThat(Interpreter.resolveCategory("metro card recharge 500", null, "Food", CATS)).isEqualTo(TRAVEL);
+            assertThat(Interpreter.resolveCategory("metro card recharge 500", null, "Food", CATS)).isEqualTo(FOOD);
             assertThat(Interpreter.resolveCategory("metro card recharge 500", null, null, CATS)).isEqualTo(TRAVEL);
+            assertThat(Interpreter.resolveCategory("recharge after metro 500", null, null, CATS)).isEqualTo(BILLS);
         }
 
         @Test
@@ -98,11 +127,39 @@ class InterpreterTest {
         void casingAndTypos() {
             assertThat(Interpreter.cleanMerchant("swigy", CATS)).isEqualTo("Swiggy");
             assertThat(Interpreter.cleanMerchant("zommato", CATS)).isEqualTo("Zomato");
-            assertThat(Interpreter.cleanMerchant("SWIGGY", CATS)).isEqualTo("Swiggy");
+            assertThat(Interpreter.cleanMerchant("swiggy", CATS)).isEqualTo("Swiggy");
             assertThat(Interpreter.cleanMerchant("dmart", CATS)).isEqualTo("DMart");
             assertThat(Interpreter.cleanMerchant("chai point", CATS)).isEqualTo("Chai Point");
             assertThat(Interpreter.cleanMerchant("BigBasket", CATS)).isEqualTo("BigBasket");
             assertThat(Interpreter.cleanMerchant("  uber.. ", CATS)).isEqualTo("Uber");
+        }
+
+        @Test
+        void capitalsAsTypedAreKept() {
+            assertThat(Interpreter.cleanMerchant("H&M", CATS)).isEqualTo("H&M");
+            assertThat(Interpreter.cleanMerchant("BMW", CATS)).isEqualTo("BMW");
+            assertThat(Interpreter.cleanMerchant("ITC", CATS)).isEqualTo("ITC");
+            assertThat(Interpreter.cleanMerchant("SWIGGY", CATS)).isEqualTo("SWIGGY");
+            assertThat(Interpreter.cleanMerchant("DMART", CATS)).isEqualTo("DMart");   // known casing still wins
+            assertThat(Interpreter.cleanMerchant("third wave coffee", CATS)).isEqualTo("Third Wave Coffee");
+        }
+
+        @Test
+        void onlyBrandAliasesAreSnapTargets() {
+            // "diner" is one edit from the generic alias "dinner", "shoez" from "shoes": not snapped
+            assertThat(Interpreter.cleanMerchant("diner", CATS)).isEqualTo("Diner");
+            assertThat(Interpreter.cleanMerchant("shoez", CATS)).isEqualTo("Shoez");
+            // four letters or fewer never snap ("ubar" is not Uber)
+            assertThat(Interpreter.cleanMerchant("ubar", CATS)).isEqualTo("Ubar");
+            assertThat(Interpreter.cleanMerchant("amazn", CATS)).isEqualTo("Amazon");
+        }
+
+        @Test
+        void exactAliasIsNeverSnappedAway() {
+            // the user's own alias "zomatos" is one edit from brand "zomato": the exact match stays
+            List<InputCategory> cats = List.of(cat(1, "Food", CategoryKind.WANT, "zomato", "zomatos"));
+            assertThat(Interpreter.cleanMerchant("zomatos", cats)).isEqualTo("Zomatos");
+            assertThat(Interpreter.cleanMerchant("zomatoo", cats)).isEqualTo("Zomato");
         }
 
         @Test
@@ -131,6 +188,19 @@ class InterpreterTest {
                 assertThat(in.followUp().question()).contains("doesn't look right");
             }
             assertThat(run(log("1000000", "Food", null, null), "food").followUp()).isNull();
+        }
+
+        @Test
+        void absurdMagnitudesAreRejectedCheaply() {
+            assertThat(Interpreter.toPaise(new BigDecimal("1e999999999"))).isEqualTo(Long.MAX_VALUE);
+            assertThat(Interpreter.toPaise(new BigDecimal("-1e999999999"))).isEqualTo(Long.MIN_VALUE);
+            assertThat(Interpreter.toPaise(new BigDecimal("1e-999999999"))).isZero();
+            assertThat(Interpreter.toPaise(new BigDecimal("100000001"))).isEqualTo(Long.MAX_VALUE);
+            assertThat(Interpreter.toPaise(new BigDecimal("100000000"))).isEqualTo(10_000_000_000L);
+            for (String bad : List.of("1e999999999", "1e-999999999")) {
+                Interpretation in = run(log(bad, "Food", null, null), "food");
+                assertThat(in.followUp().missing()).as(bad).containsExactly("amount");
+            }
         }
     }
 
@@ -236,10 +306,27 @@ class InterpreterTest {
         }
 
         @Test
-        void queryTypeInferredWhenMissing() {
+        void missingQueryTypeIsCategoryLeftForACategoryElseAsked() {
             Extraction e = new Extraction(InputIntent.QUERY, null, null, null, null, null, null, null, null, 0.9);
             assertThat(run(e, "travel?").queryType()).isEqualTo(QueryType.CATEGORY_LEFT);
-            assertThat(run(e, "how much?").queryType()).isEqualTo(QueryType.TOTAL_SPENT);
+            assertThat(run(e, "travel?").followUp()).isNull();
+            Interpretation vague = run(e, "how much?");
+            assertThat(vague.queryType()).isNull();
+            assertThat(vague.followUp().question()).isEqualTo("What would you like to know — what's left in a "
+                    + "category, total spent, or safe to spend today?");
+            assertThat(vague.followUp().missing()).containsExactly("query");
+        }
+
+        @Test
+        void unsureQueryAsks() {
+            Extraction e = new Extraction(InputIntent.QUERY, null, null, null, null, null, null,
+                    QueryType.TOTAL_SPENT, null, 0.4);
+            Interpretation in = run(e, "spent?");
+            assertThat(in.followUp().missing()).containsExactly("confirmation");
+            assertThat(in.followUp().question()).contains("total spent");
+            Extraction sure = new Extraction(InputIntent.QUERY, null, null, null, null, null, null,
+                    QueryType.TOTAL_SPENT, null, 0.7);
+            assertThat(run(sure, "spent?").followUp()).isNull();
         }
 
         @Test

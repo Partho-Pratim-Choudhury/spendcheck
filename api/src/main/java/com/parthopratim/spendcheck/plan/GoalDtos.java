@@ -37,11 +37,15 @@ public final class GoalDtos {
             @NotNull @PositiveOrZero @Max(MAX) Long monthlyContributionPaise,
             LocalDate targetDate) {}
 
-    /** All fields optional; null means "leave unchanged". */
+    /**
+     * All fields optional; null means "leave unchanged". {@code clearTargetDate: true} removes the target date
+     * (and may not be combined with a {@code targetDate}).
+     */
     public record UpdateGoalRequest(
             @Size(min = 1, max = 100) @Pattern(regexp = ".*\\S.*", message = "must not be blank") String name,
             @Positive @Max(MAX) Long targetPaise,
             @PositiveOrZero @Max(MAX) Long savedPaise,
             @PositiveOrZero @Max(MAX) Long monthlyContributionPaise,
-            LocalDate targetDate) {}
+            LocalDate targetDate,
+            Boolean clearTargetDate) {}
 }

@@ -25,11 +25,15 @@ public class InputController {
     public static final long MAX_AUDIO_BYTES = 2L * 1024 * 1024;
 
     /** Accepted audio content types → the file extension the speech-to-text provider expects. */
-    private static final Map<String, String> AUDIO_TYPES = Map.of(
-            "audio/mp4", "m4a", "audio/m4a", "m4a", "audio/x-m4a", "m4a", "audio/aac", "aac",
-            "audio/mpeg", "mp3", "audio/webm", "webm", "audio/ogg", "ogg", "audio/wav", "wav", "audio/x-wav", "wav");
+    private static final Map<String, String> AUDIO_TYPES = Map.ofEntries(
+            Map.entry("audio/mp4", "m4a"), Map.entry("audio/m4a", "m4a"), Map.entry("audio/x-m4a", "m4a"),
+            Map.entry("audio/aac", "aac"), Map.entry("audio/mpeg", "mp3"), Map.entry("audio/mp3", "mp3"),
+            Map.entry("audio/x-mp3", "mp3"), Map.entry("audio/mpeg3", "mp3"), Map.entry("audio/x-mpeg-3", "mp3"),
+            Map.entry("audio/webm", "webm"), Map.entry("audio/ogg", "ogg"), Map.entry("audio/wav", "wav"),
+            Map.entry("audio/x-wav", "wav"), Map.entry("audio/wave", "wav"), Map.entry("audio/vnd.wave", "wav"),
+            Map.entry("audio/flac", "flac"), Map.entry("audio/x-flac", "flac"));
     private static final Set<String> AUDIO_EXTENSIONS = Set.of("m4a", "mp4", "aac", "mp3", "mpeg", "mpga", "webm",
-            "ogg", "oga", "wav");
+            "ogg", "oga", "wav", "flac");
 
     private final InputOrchestrator orchestrator;
     private final CurrentUser currentUser;
@@ -61,8 +65,8 @@ public class InputController {
     }
 
     /**
-     * {@code voice.<ext>} for a supported type; {@code application/octet-stream} (or no type) is accepted when the
-     * original filename has a known audio extension.
+     * {@code voice.<ext>} for a supported type. A type we don't know — none, {@code application/octet-stream} or an
+     * unlisted {@code audio/*} — is accepted when the original filename has a known audio extension.
      *
      * @throws FieldValidationException unsupported type
      */
@@ -73,12 +77,13 @@ public class InputController {
         if (mapped != null) {
             return "voice." + (ext != null && AUDIO_EXTENSIONS.contains(ext) ? ext : mapped);
         }
-        if ((type.isEmpty() || type.equals(MediaType.APPLICATION_OCTET_STREAM_VALUE))
-                && ext != null && AUDIO_EXTENSIONS.contains(ext)) {
+        boolean unknownType = type.isEmpty() || type.equals(MediaType.APPLICATION_OCTET_STREAM_VALUE)
+                || type.startsWith("audio/");
+        if (unknownType && ext != null && AUDIO_EXTENSIONS.contains(ext)) {
             return "voice." + ext;
         }
         throw new FieldValidationException("audio",
-                "unsupported audio type; send m4a, aac, mp4, mp3, webm, ogg or wav");
+                "unsupported audio type; send m4a, aac, mp4, mp3, webm, ogg, wav or flac");
     }
 
     private static String extension(String filename) {

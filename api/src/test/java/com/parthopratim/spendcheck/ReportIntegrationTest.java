@@ -110,12 +110,12 @@ class ReportIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.byCategory[1].limitPaise").value(800_000))
                 .andExpect(jsonPath("$.needsPaise").value(100_000))
                 .andExpect(jsonPath("$.wantsPaise").value(780_000))
-                .andExpect(jsonPath("$.untaggedPaise").value(2_500_000))
+                .andExpect(jsonPath("$.untaggedPaise").value(0))   // rent is FIXED: not in needs/wants/untagged
                 .andExpect(jsonPath("$.topWants", hasSize(2)))
-                .andExpect(jsonPath("$.topWants[0].label").value("myntra"))
+                .andExpect(jsonPath("$.topWants[0].label").value("Myntra"))
                 .andExpect(jsonPath("$.topWants[0].count").value(1))
                 .andExpect(jsonPath("$.topWants[0].totalPaise").value(580_000))
-                .andExpect(jsonPath("$.topWants[1].label").value("swiggy"))
+                .andExpect(jsonPath("$.topWants[1].label").value("swiggy"))   // "Swiggy" 1, "swiggy" 1: latest wins
                 .andExpect(jsonPath("$.topWants[1].count").value(2))
                 .andExpect(jsonPath("$.topWants[1].totalPaise").value(200_000))
                 .andExpect(jsonPath("$.wantsByWeekday", contains(580_000, 0, 0, 200_000, 0, 0, 0)))
@@ -143,6 +143,32 @@ class ReportIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void topWantLabelIsTheMostUsedSpellingAndFixedSpendsStayOutOfNeedsAndWants() throws Exception {
+        TestUser u = newUser(7);
+        today(OCT_22);
+        putReferencePlan(u);
+        spend(u, 100 * RUPEE, "Food", LocalDate.of(2026, 10, 10), "Swiggy", null);
+        spend(u, 100 * RUPEE, "Food", LocalDate.of(2026, 10, 11), "SWIGGY", null);
+        spend(u, 100 * RUPEE, "Food", LocalDate.of(2026, 10, 12), "Swiggy", null);
+        spend(u, 100 * RUPEE, "Food", LocalDate.of(2026, 10, 20), "swiggy", null);
+        spend(u, 200 * RUPEE, "Shopping", LocalDate.of(2026, 10, 13), "h&m", null);
+        spend(u, 200 * RUPEE, "Shopping", LocalDate.of(2026, 10, 14), "H&M", null);
+        spend(u, 1_000 * RUPEE, "EMI", LocalDate.of(2026, 10, 9), "Bank", "WANT");   // FIXED, even if tagged
+        mvc.perform(as(u, get("/api/v1/reports/monthly")))
+                .andExpect(jsonPath("$.totals.spentPaise").value(80_000))
+                .andExpect(jsonPath("$.needsPaise").value(0))
+                .andExpect(jsonPath("$.wantsPaise").value(80_000))
+                .andExpect(jsonPath("$.untaggedPaise").value(0))
+                .andExpect(jsonPath("$.topWants", hasSize(2)))
+                .andExpect(jsonPath("$.topWants[0].label").value("Swiggy"))   // 2 of 4 spellings
+                .andExpect(jsonPath("$.topWants[0].count").value(4))
+                .andExpect(jsonPath("$.topWants[0].totalPaise").value(40_000))
+                .andExpect(jsonPath("$.topWants[1].label").value("H&M"))      // 1:1, the later one
+                .andExpect(jsonPath("$.topWants[1].count").value(2))
+                .andExpect(jsonPath("$.wantsByWeekday", contains(10_000, 30_000, 20_000, 0, 0, 10_000, 10_000)));
+    }
+
+    @Test
     void dailySummaryToday() throws Exception {
         TestUser u = seeded();
         mvc.perform(as(u, get("/api/v1/summary/daily")))
@@ -157,7 +183,7 @@ class ReportIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.month.projectedPaise").value(1_705_000))
                 .andExpect(jsonPath("$.month.savingsAtRiskPaise").value(0))
                 .andExpect(jsonPath("$.pausesSavedPaise").value(0))
-                .andExpect(jsonPath("$.text").value("Today ₹1,800 across 2 spends — ₹887.50 under today's safe "
+                .andExpect(jsonPath("$.text").value("Today ₹1,800 across 2 spends — ₹888 under today's safe "
                         + "spend. Month: ₹8,800 of ₹50,000, projected ₹17,050."));
     }
 
@@ -174,8 +200,8 @@ class ReportIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.overPaise").value(0))
                 .andExpect(jsonPath("$.month.spentPaise").value(700_000))
                 .andExpect(jsonPath("$.month.projectedPaise").value(700_000L * 31 / 9))
-                .andExpect(jsonPath("$.text").value("On 15 Oct 2026 ₹1,200 across 1 spend — ₹721.73 under the "
-                        + "day's safe spend. Month: ₹7,000 of ₹50,000, projected ₹24,111.11."));
+                .andExpect(jsonPath("$.text").value("On 15 Oct 2026 ₹1,200 across 1 spend — ₹722 under the "
+                        + "day's safe spend. Month: ₹7,000 of ₹50,000, projected ₹24,111."));
         mvc.perform(as(u, get("/api/v1/summary/daily?date=2026-10-12")))
                 .andExpect(jsonPath("$.overPaise").value(580_000 - 5_000_000 / 26));
         mvc.perform(as(u, get("/api/v1/summary/daily?date=2026-09-01"))).andExpect(status().isNotFound());

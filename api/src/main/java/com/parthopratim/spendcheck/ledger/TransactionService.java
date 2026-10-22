@@ -1,5 +1,6 @@
 package com.parthopratim.spendcheck.ledger;
 
+import com.parthopratim.spendcheck.auth.UserRepository;
 import com.parthopratim.spendcheck.auth.UserTime;
 import com.parthopratim.spendcheck.common.ConflictException;
 import com.parthopratim.spendcheck.common.FieldValidationException;
@@ -28,6 +29,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class TransactionService {
 
     private static final Duration MAX_FUTURE_SKEW = Duration.ofDays(1);
+    private static final List<TransactionSource> CHAT_SOURCES = List.of(TransactionSource.TEXT,
+            TransactionSource.VOICE);
 
     public record CreateResult(TransactionResponse transaction, boolean created) {}
 
@@ -35,17 +38,19 @@ public class TransactionService {
     private final CategoryRepository categories;
     private final RawInputRepository rawInputs;
     private final BudgetPlanRepository plans;
+    private final UserRepository users;
     private final UserTime userTime;
     private final TransactionTemplate tx;
     private final TransactionTemplate readTx;
 
     public TransactionService(TransactionRepository transactions, CategoryRepository categories,
-                              RawInputRepository rawInputs, BudgetPlanRepository plans, UserTime userTime,
-                              PlatformTransactionManager txManager) {
+                              RawInputRepository rawInputs, BudgetPlanRepository plans, UserRepository users,
+                              UserTime userTime, PlatformTransactionManager txManager) {
         this.transactions = transactions;
         this.categories = categories;
         this.rawInputs = rawInputs;
         this.plans = plans;
+        this.users = users;
         this.userTime = userTime;
         this.tx = new TransactionTemplate(txManager);
         this.readTx = new TransactionTemplate(txManager);
@@ -80,7 +85,7 @@ public class TransactionService {
                 blankToNull(req.note()), req.spentAt(), req.needOrWant(), req.source(),
                 TransactionStatus.CONFIRMED);
         t.setRawInputId(req.rawInputId());
-        t.setPlanId(activePlanCovering(userId, req.spentAt()));
+        t.setPlanId(planCovering(userId, req.spentAt()));
         transactions.saveAndFlush(t);
         return new CreateResult(TransactionResponse.from(t), true);
     }
@@ -113,7 +118,7 @@ public class TransactionService {
         if (req.spentAt() != null) {
             checkSpentAt(req.spentAt());
             t.setSpentAt(req.spentAt());
-            t.setPlanId(activePlanCovering(userId, req.spentAt()));
+            t.setPlanId(planCovering(userId, req.spentAt()));
         }
         if (req.needOrWant() != null) {
             t.setNeedOrWant(req.needOrWant());
@@ -132,18 +137,14 @@ public class TransactionService {
     }
 
     /**
-     * Chat "undo": cancels the user's most recently created CONFIRMED transaction if it was created after
-     * {@code since}. Returns what was cancelled.
+     * Chat "undo" candidate: the user's most recently created CONFIRMED transaction that came from chat (TEXT or
+     * VOICE) after {@code since}. Read-only; the app cancels it with {@code DELETE /transactions/{id}}.
      */
-    @Transactional
-    public Optional<TransactionResponse> undoLatest(long userId, Instant since) {
-        return transactions.findFirstByUserIdAndStatusAndCreatedAtAfterOrderByCreatedAtDesc(userId,
-                        TransactionStatus.CONFIRMED, since)
-                .map(t -> {
-                    t.setStatus(TransactionStatus.CANCELLED);
-                    transactions.flush();
-                    return TransactionResponse.from(t);
-                });
+    @Transactional(readOnly = true)
+    public Optional<TransactionResponse> latestUndoable(long userId, Instant since) {
+        return transactions.findFirstByUserIdAndStatusAndSourceInAndCreatedAtAfterOrderByCreatedAtDesc(userId,
+                        TransactionStatus.CONFIRMED, CHAT_SOURCES, since)
+                .map(TransactionResponse::from);
     }
 
     @Transactional(readOnly = true)
@@ -188,10 +189,15 @@ public class TransactionService {
         return c;
     }
 
-    /** The ACTIVE plan whose period contains the spend's date (user tz), or null. */
-    private Long activePlanCovering(long userId, Instant spentAt) {
+    /**
+     * The plan (ACTIVE first, else the newest CLOSED one) whose period contains the spend's date (user tz), or null.
+     * Takes the user lock first, as plan rollover does, so a concurrent rollover cannot close the plan or reassign
+     * this period's transactions between our lookup and our commit.
+     */
+    private Long planCovering(long userId, Instant spentAt) {
+        users.lockById(userId).orElseThrow(() -> new NotFoundException("User not found."));
         LocalDate date = LocalDate.ofInstant(spentAt, userTime.zone(userId));
-        return plans.findActiveIdCovering(userId, date).orElse(null);
+        return plans.findIdsCovering(userId, date).stream().findFirst().orElse(null);
     }
 
     private void checkSpentAt(Instant spentAt) {

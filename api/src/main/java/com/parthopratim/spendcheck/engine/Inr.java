@@ -1,26 +1,35 @@
 package com.parthopratim.spendcheck.engine;
 
-/** Formats paise as rupees for message text: {@code ₹1,20,000}, {@code ₹1,234.50}, {@code -₹500}. */
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
+
+/**
+ * Formats paise as whole rupees for message text, rounding half-up (away from zero): {@code ₹1,20,000},
+ * {@code ₹1,235}, {@code -₹500}. JSON fields keep exact paise; only text is rounded.
+ */
 public final class Inr {
 
     private Inr() {
     }
 
     public static String format(long paise) {
-        boolean negative = paise < 0;
-        // via unsigned-safe magnitude: Long.MIN_VALUE has no positive counterpart
-        String digits = Long.toUnsignedString(negative ? -paise : paise);
-        String rupees = digits.length() > 2 ? digits.substring(0, digits.length() - 2) : "0";
-        String fraction = digits.length() >= 2 ? digits.substring(digits.length() - 2) : "0" + digits;
+        return rupees(paise, RoundingMode.HALF_UP);
+    }
+
+    /** Rounded up (away from zero) to a whole rupee, for amounts that must never be understated ("₹1 over"). */
+    public static String formatUp(long paise) {
+        return rupees(paise, RoundingMode.UP);
+    }
+
+    private static String rupees(long paise, RoundingMode mode) {
+        // BigDecimal: rounds the magnitude, and Long.MIN_VALUE has no positive long counterpart
+        BigInteger rupees = BigDecimal.valueOf(paise).movePointLeft(2).setScale(0, mode).toBigInteger();
         StringBuilder sb = new StringBuilder();
-        if (negative) {
+        if (rupees.signum() < 0) {
             sb.append('-');
         }
-        sb.append('₹').append(group(rupees));
-        if (!fraction.equals("00")) {
-            sb.append('.').append(fraction);
-        }
-        return sb.toString();
+        return sb.append('₹').append(group(rupees.abs().toString())).toString();
     }
 
     /** Indian grouping: the last three digits, then groups of two (1,23,45,678). */

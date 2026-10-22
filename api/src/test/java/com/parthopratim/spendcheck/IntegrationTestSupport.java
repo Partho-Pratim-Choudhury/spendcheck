@@ -150,13 +150,19 @@ public abstract class IntegrationTestSupport {
 
     protected UUID spendAt(TestUser u, long paise, String category, Instant spentAt, String merchant,
                            String needOrWant) throws Exception {
+        return spendVia(u, "MANUAL", paise, category, spentAt, merchant, needOrWant);
+    }
+
+    /** Like {@link #spendAt} with a given source (TEXT, VOICE or MANUAL). */
+    protected UUID spendVia(TestUser u, String source, long paise, String category, Instant spentAt, String merchant,
+                            String needOrWant) throws Exception {
         UUID id = UUID.randomUUID();
         Map<String, Object> body = new HashMap<>();
         body.put("id", id.toString());
         body.put("amountPaise", paise);
         body.put("categoryId", u.cat(category));
         body.put("spentAt", spentAt.toString());
-        body.put("source", "MANUAL");
+        body.put("source", source);
         if (merchant != null) {
             body.put("merchant", merchant);
         }

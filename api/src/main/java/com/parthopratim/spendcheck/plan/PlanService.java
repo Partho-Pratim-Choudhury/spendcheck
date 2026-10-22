@@ -4,6 +4,7 @@ import com.parthopratim.spendcheck.auth.User;
 import com.parthopratim.spendcheck.auth.UserRepository;
 import com.parthopratim.spendcheck.auth.UserResponse;
 import com.parthopratim.spendcheck.auth.UserTime;
+import com.parthopratim.spendcheck.check.SpendCheckRepository;
 import com.parthopratim.spendcheck.common.ConflictException;
 import com.parthopratim.spendcheck.common.FieldValidationException;
 import com.parthopratim.spendcheck.common.NotFoundException;
@@ -20,8 +21,10 @@ import com.parthopratim.spendcheck.plan.PlanDtos.LimitResponse;
 import com.parthopratim.spendcheck.plan.PlanDtos.PlanResponse;
 import com.parthopratim.spendcheck.plan.PlanDtos.PlanSummary;
 import com.parthopratim.spendcheck.plan.PlanDtos.PutPlanRequest;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -52,15 +55,18 @@ public class PlanService {
     private final CategoryRepository categories;
     private final UserRepository users;
     private final TransactionRepository transactions;
+    private final SpendCheckRepository checks;
     private final UserTime userTime;
     private final TransactionTemplate tx;
 
     public PlanService(BudgetPlanRepository plans, CategoryRepository categories, UserRepository users,
-                       TransactionRepository transactions, UserTime userTime, PlatformTransactionManager txManager) {
+                       TransactionRepository transactions, SpendCheckRepository checks, UserTime userTime,
+                       PlatformTransactionManager txManager) {
         this.plans = plans;
         this.categories = categories;
         this.users = users;
         this.transactions = transactions;
+        this.checks = checks;
         this.userTime = userTime;
         this.tx = new TransactionTemplate(txManager);
     }
@@ -81,23 +87,34 @@ public class PlanService {
      * transaction; the returned entity is managed.
      */
     public Optional<BudgetPlan> activeUpToDate(long userId) {
+        rollForwardIfDue(userId);
+        return plans.findByUserIdAndStatus(userId, PlanStatus.ACTIVE);
+    }
+
+    /**
+     * Rolls the user's ACTIVE plan forward if its period ended before today, loading nothing when it has not (one
+     * cheap probe). Call inside a read-write transaction.
+     */
+    public void rollForwardIfDue(long userId) {
         User user = users.findById(userId).orElseThrow(() -> new NotFoundException("User not found."));
         LocalDate today = userTime.today(user);
         Optional<LocalDate> end = plans.findPeriodEndByUserIdAndStatus(userId, PlanStatus.ACTIVE);
         if (end.isPresent() && end.get().isBefore(today)) {
             rollForwardLocked(lock(userId), today);
         }
-        return plans.findByUserIdAndStatus(userId, PlanStatus.ACTIVE);
     }
 
     /**
      * The daily job's work: rolls forward every user whose ACTIVE plan has ended, each in its own transaction.
+     * Only users whose plan ended before the latest "today" on Earth (UTC+14) are candidates, so nobody due is
+     * missed whatever their tz; each is re-checked in their own tz under the lock.
      *
      * @return how many users were rolled forward
      */
     public int rolloverAllDue() {
         int rolled = 0;
-        for (Long userId : plans.findUserIdsWithStatus(PlanStatus.ACTIVE)) {
+        LocalDate latestToday = LocalDate.ofInstant(userTime.now(), ZoneOffset.MAX);
+        for (Long userId : plans.findUserIdsWithActivePlanEndingBefore(latestToday)) {
             try {
                 Boolean done = tx.execute(s -> {
                     User user = lock(userId);
@@ -215,10 +232,13 @@ public class PlanService {
         return rolled;
     }
 
+    /** Points the transactions dated, and the spend checks made, within the plan's period at it. */
     private void assignTransactions(User user, BudgetPlan plan) {
         ZoneId zone = userTime.zone(user);
-        transactions.assignPlan(user.getId(), plan.getId(), plan.getPeriodStart().atStartOfDay(zone).toInstant(),
-                plan.getPeriodEnd().plusDays(1).atStartOfDay(zone).toInstant());
+        Instant from = plan.getPeriodStart().atStartOfDay(zone).toInstant();
+        Instant to = plan.getPeriodEnd().plusDays(1).atStartOfDay(zone).toInstant();
+        transactions.assignPlan(user.getId(), plan.getId(), from, to);
+        checks.assignPlan(user.getId(), plan.getId(), from, to);
     }
 
     /** The category of each limit, in request order; 400 with {@code limits[i].categoryId} errors otherwise. */

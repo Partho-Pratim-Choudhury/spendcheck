@@ -4,7 +4,6 @@ import com.parthopratim.spendcheck.engine.CategoryStatus.Status;
 import com.parthopratim.spendcheck.ledger.CategoryKind;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +20,9 @@ public final class BudgetEngine {
     public static final String REASON_OVER_CATEGORY = "over category limit";
     public static final String REASON_OVER_TODAY = "over today's safe spend";
     public static final String REASON_OVER_HALF = "uses more than half of what's left in category";
+
+    /** 100 years: beyond this an on-track date is meaningless (and far enough out would overflow LocalDate). */
+    public static final long ON_TRACK_HORIZON_MONTHS = 1200;
 
     private static final Comparator<GoalInput> PRIMARY_GOAL_ORDER = Comparator
             .comparing(GoalInput::targetDate, Comparator.nullsLast(Comparator.naturalOrder()))
@@ -215,7 +217,7 @@ public final class BudgetEngine {
             case GREEN -> "Fits. " + categoryName + " left after: " + Inr.format(catLeft - amountPaise) + ".";
             case AMBER -> "Careful. " + capitalise(reasons.get(0)) + ". " + categoryName + " left after: "
                     + Inr.format(Math.max(0, catLeft - amountPaise)) + ".";
-            case RED -> "Over plan. " + Inr.format(overflow) + " more than " + categoryName
+            case RED -> "Over plan. " + Inr.formatUp(overflow) + " more than " + categoryName
                     + " has left — it comes out of savings."
                     + (goalDelayDays != null ? " " + goalName + " delayed ~" + goalDelayDays + " days." : "");
         };
@@ -235,11 +237,7 @@ public final class BudgetEngine {
 
     // ---------- goals ----------
 
-    /** Earliest target date (nulls last), then lowest id. */
-    public static Optional<GoalInput> primaryGoal(Collection<GoalInput> goals) {
-        return goals.stream().min(PRIMARY_GOAL_ORDER);
-    }
-
+    /** The primary goal comes first: earliest target date (nulls last), then lowest id. */
     public static Comparator<GoalInput> primaryGoalOrder() {
         return PRIMARY_GOAL_ORDER;
     }
@@ -254,7 +252,8 @@ public final class BudgetEngine {
 
     /**
      * Projected completion at the current monthly contribution: today when already reached, null when nothing is
-     * being contributed, else today plus {@code ceil(remaining / contribution)} months.
+     * being contributed or the date would be more than {@value #ON_TRACK_HORIZON_MONTHS} months away, else today
+     * plus {@code ceil(remaining / contribution)} months.
      */
     public static LocalDate onTrackDate(long targetPaise, long savedPaise, long monthlyContributionPaise,
                                         LocalDate today) {
@@ -265,7 +264,8 @@ public final class BudgetEngine {
         if (monthlyContributionPaise <= 0) {
             return null;
         }
-        return today.plusMonths(Math.ceilDiv(remaining, monthlyContributionPaise));
+        long months = Math.ceilDiv(remaining, monthlyContributionPaise);
+        return months > ON_TRACK_HORIZON_MONTHS ? null : today.plusMonths(months);
     }
 
     private static String capitalise(String s) {

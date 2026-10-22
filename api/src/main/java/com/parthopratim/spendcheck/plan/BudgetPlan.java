@@ -65,11 +65,16 @@ public class BudgetPlan {
         this.status = PlanStatus.ACTIVE;
     }
 
-    /** A new ACTIVE plan for {@code period} with the same income, savings target and limits. */
+    /**
+     * A new ACTIVE plan for {@code period} with the same income, savings target and limits, minus the limits of
+     * categories archived since (a plan may not budget an archived category).
+     */
     public static BudgetPlan copyOf(BudgetPlan source, Period period) {
         BudgetPlan p = new BudgetPlan(source.userId, period, source.incomePaise, source.savingsTargetPaise);
         for (PlanLimit l : source.limits) {
-            p.addLimit(l.getCategory(), l.getLimitPaise());
+            if (!l.getCategory().isArchived()) {
+                p.addLimit(l.getCategory(), l.getLimitPaise());
+            }
         }
         return p;
     }

@@ -3,16 +3,21 @@ package com.parthopratim.spendcheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.parthopratim.spendcheck.auth.User;
+import com.parthopratim.spendcheck.check.SpendCheckRepository;
 import com.parthopratim.spendcheck.input.RawInput;
 import com.parthopratim.spendcheck.input.RawInputRepository;
 import com.parthopratim.spendcheck.input.RawInputType;
 import com.parthopratim.spendcheck.ledger.TransactionRepository;
+import com.parthopratim.spendcheck.ledger.Category;
+import com.parthopratim.spendcheck.ledger.CategoryKind;
 import com.parthopratim.spendcheck.plan.PlanService;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -32,6 +37,7 @@ class PlanIntegrationTest extends IntegrationTestSupport {
     @Autowired PlanService planService;
     @Autowired TransactionRepository transactions;
     @Autowired RawInputRepository rawInputs;
+    @Autowired SpendCheckRepository checks;
 
     @Test
     void noPlanMeans404ForCurrentAndDashboardAnd409ForChecks() throws Exception {
@@ -339,4 +345,104 @@ class PlanIntegrationTest extends IntegrationTestSupport {
         return body;
     }
 
+
+    // ---------- review fixes ----------
+
+    @Test
+    void backdatedSpendIntoAClosedPeriodGetsThatPlan() throws Exception {
+        TestUser u = newUser(7);
+        today(OCT_22);
+        long october = putReferencePlan(u).get("id").asLong();
+        today(LocalDate.of(2026, 11, 8));
+        long november = readJson(mvc.perform(as(u, get("/api/v1/plans/current")))).get("id").asLong();
+
+        UUID backdated = spend(u, 100, "Food", LocalDate.of(2026, 10, 30), null, null);
+        assertThat(transactions.findById(backdated).orElseThrow().getPlanId()).isEqualTo(october);
+
+        UUID moved = spend(u, 100, "Food", LocalDate.of(2026, 11, 8), null, null);
+        assertThat(transactions.findById(moved).orElseThrow().getPlanId()).isEqualTo(november);
+        mvc.perform(asJson(u, patch("/api/v1/transactions/" + moved), Map.of("spentAt", "2026-10-25T06:00:00Z")))
+                .andExpect(status().isOk());
+        assertThat(transactions.findById(moved).orElseThrow().getPlanId()).isEqualTo(october);
+    }
+
+    @Test
+    void rolloverDropsLimitsOfArchivedCategories() throws Exception {
+        TestUser u = newUser(7);
+        today(OCT_22);
+        putReferencePlan(u);
+        mvc.perform(asJson(u, patch("/api/v1/categories/" + u.cat("Shopping")), Map.of("archived", true)))
+                .andExpect(status().isOk());
+        today(LocalDate.of(2026, 11, 8));
+        mvc.perform(as(u, get("/api/v1/plans/current")))
+                .andExpect(jsonPath("$.periodStart").value("2026-11-07"))
+                .andExpect(jsonPath("$.limits", hasSize(5)))
+                .andExpect(jsonPath("$.limits[?(@.name == 'Shopping')]", hasSize(0)));
+    }
+
+    @Test
+    void manualRolloverMovesTodaysChecksToTheNewPlan() throws Exception {
+        TestUser u = newUser(7);
+        today(OCT_22);
+        long october = putReferencePlan(u).get("id").asLong();
+        long earlyCheck = readJson(mvc.perform(asJson(u, post("/api/v1/checks"),
+                Map.of("amountPaise", 100, "categoryId", u.cat("Food"))))).get("checkId").asLong();
+        today(LocalDate.of(2026, 11, 5));   // salary early
+        long todayCheck = readJson(mvc.perform(asJson(u, post("/api/v1/checks"),
+                Map.of("amountPaise", 100, "categoryId", u.cat("Food"))))).get("checkId").asLong();
+        assertThat(checks.findById(todayCheck).orElseThrow().getPlanId()).isEqualTo(october);
+
+        long november = readJson(mvc.perform(as(u, post("/api/v1/plans/rollover")))).get("id").asLong();
+        assertThat(checks.findById(todayCheck).orElseThrow().getPlanId()).isEqualTo(november);
+        assertThat(checks.findById(earlyCheck).orElseThrow().getPlanId()).isEqualTo(october);
+    }
+
+    @Test
+    void kindChangeThatWouldMakeDiscretionaryNegativeIs409() throws Exception {
+        TestUser u = newUser(7);
+        today(OCT_22);
+        Map<String, Long> limits = new LinkedHashMap<>();
+        limits.put("Rent", 25_000 * RUPEE);
+        limits.put("Groceries", 10_000 * RUPEE);
+        limits.put("Food", 1_000 * RUPEE);
+        // discretionary = 1,00,000 − 25,000 − 70,000 = 5,000
+        mvc.perform(asJson(u, put("/api/v1/plans/current"), planBody(u, 100_000 * RUPEE, 70_000 * RUPEE, limits)))
+                .andExpect(status().isOk());
+
+        mvc.perform(asJson(u, patch("/api/v1/categories/" + u.cat("Groceries")), Map.of("kind", "FIXED")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("Groceries")));
+        mvc.perform(as(u, get("/api/v1/categories"))).andExpect(
+                jsonPath("$[?(@.name == 'Groceries')].kind", org.hamcrest.Matchers.contains("NEED")));
+        // fits (5,000 − 1,000 ≥ 0), or not in the plan, or away from FIXED: allowed
+        mvc.perform(asJson(u, patch("/api/v1/categories/" + u.cat("Food")), Map.of("kind", "FIXED")))
+                .andExpect(status().isOk());
+        mvc.perform(asJson(u, patch("/api/v1/categories/" + u.cat("Shopping")), Map.of("kind", "FIXED")))
+                .andExpect(status().isOk());
+        mvc.perform(asJson(u, patch("/api/v1/categories/" + u.cat("Rent")), Map.of("kind", "NEED")))
+                .andExpect(status().isOk());
+        mvc.perform(as(u, get("/api/v1/plans/current"))).andExpect(jsonPath("$.discretionaryPaise").value(
+                (100_000 - 1_000 - 70_000) * RUPEE));
+    }
+
+    @Test
+    void dailyJobFindsUsersWhoseDayStartsAheadOfTheServer() throws Exception {
+        // UTC+14: at 10:30Z on 11-06 it is already 11-07 there (still 11-06 in IST)
+        User kiribati = users.save(new User("it-" + UUID.randomUUID() + "@test.local", "{noop}unused", "K",
+                "Pacific/Kiritimati", 7));
+        Category food = categories.save(new Category(kiribati.getId(), "Food", CategoryKind.WANT, List.of()));
+        TestUser k = new TestUser(kiribati, jwtService.issue(kiribati).token(), Map.of("Food", food.getId()));
+        TestUser ist = newUser(7);
+        today(OCT_22);
+        for (TestUser u : List.of(k, ist)) {
+            mvc.perform(asJson(u, put("/api/v1/plans/current"), planBody(u, 100_000 * RUPEE, 0,
+                    Map.of("Food", 1_000 * RUPEE)))).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.periodEnd").value("2026-11-06"));
+        }
+        clock.set(Instant.parse("2026-11-06T10:30:00Z"));
+        planService.rolloverAllDue();
+        mvc.perform(as(k, get("/api/v1/plans"))).andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].periodStart").value("2026-11-07"));
+        mvc.perform(as(ist, get("/api/v1/plans"))).andExpect(jsonPath("$", hasSize(1)));
+    }
 }

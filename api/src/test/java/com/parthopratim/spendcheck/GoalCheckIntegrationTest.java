@@ -63,6 +63,17 @@ class GoalCheckIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.targetDate").value("2026-12-01"));
         mvc.perform(as(u, get("/api/v1/goals"))).andExpect(jsonPath("$[0].name").value("Bike!"));
+        // a target date can be cleared, but not cleared and set at once
+        mvc.perform(asJson(u, patch("/api/v1/goals/" + id), Map.of("clearTargetDate", true, "targetDate",
+                        "2027-01-01")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.clearTargetDate").exists());
+        mvc.perform(asJson(u, patch("/api/v1/goals/" + id), Map.of("clearTargetDate", false)))
+                .andExpect(jsonPath("$.targetDate").value("2026-12-01"));
+        mvc.perform(asJson(u, patch("/api/v1/goals/" + id), Map.of("clearTargetDate", true)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.targetDate").value(Matchers.nullValue()));
+        mvc.perform(as(u, get("/api/v1/goals"))).andExpect(jsonPath("$[0].name").value("Goa trip"));
 
         mvc.perform(as(u, delete("/api/v1/goals/" + id))).andExpect(status().isNoContent());
         mvc.perform(as(u, delete("/api/v1/goals/" + id))).andExpect(status().isNotFound());
