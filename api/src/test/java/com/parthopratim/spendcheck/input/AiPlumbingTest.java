@@ -123,21 +123,24 @@ class AiPlumbingTest {
                 new ConnectException("Connection refused")))).isEqualTo(2);
         assertThat(attempts(OpenAiHttp.retry(), new ResourceAccessException("I/O error",
                 new HttpConnectTimeoutException("connect timed out")))).isEqualTo(2);
-        // a read timeout already used up the time budget: never retried
+        // a read timeout already waited the full read timeout: never retried
         assertThat(attempts(OpenAiHttp.retry(), new ResourceAccessException("I/O error",
                 new HttpTimeoutException("request timed out")))).isEqualTo(1);
         assertThat(attempts(OpenAiHttp.retry(), new NonTransientAiException("400 - bad request"))).isEqualTo(1);
     }
 
     @Test
-    void slowFailureIsNotRetried() {
+    void retryDependsOnTheFailureNotOnHowLongItTook() {
+        // a connect timeout only surfaces after CONNECT_TIMEOUT; a slow first attempt (longer than the old 2 s
+        // budget) must still be retried
         AtomicInteger calls = new AtomicInteger();
-        assertThatThrownBy(() -> OpenAiHttp.retry(Duration.ofMillis(50)).execute(c -> {
-            calls.incrementAndGet();
-            Thread.sleep(120);
-            throw new TransientAiException("503 - slow");
-        })).isInstanceOf(TransientAiException.class);
-        assertThat(calls).hasValue(1);
+        assertThatThrownBy(() -> OpenAiHttp.retry().execute(c -> {
+            if (calls.incrementAndGet() == 1) {
+                Thread.sleep(2_100);
+            }
+            throw new ResourceAccessException("I/O error", new HttpConnectTimeoutException("connect timed out"));
+        })).isInstanceOf(ResourceAccessException.class);
+        assertThat(calls).hasValue(2);
     }
 
     private static int attempts(RetryTemplate retry, RuntimeException failure) {

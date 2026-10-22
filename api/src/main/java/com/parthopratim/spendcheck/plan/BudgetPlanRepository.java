@@ -23,8 +23,8 @@ public interface BudgetPlanRepository extends JpaRepository<BudgetPlan, Long> {
     List<BudgetPlan> findByUserIdOrderByPeriodStartDescIdDesc(Long userId);
 
     // no fetch graph: a collection fetch with a row limit would be paginated in memory
-    List<BudgetPlan> findTop6ByUserIdAndPeriodStartLessThanEqualOrderByPeriodStartDescIdDesc(Long userId,
-                                                                                         LocalDate start);
+    List<BudgetPlan> findTop5ByUserIdAndPeriodStartLessThanOrderByPeriodStartDescIdDesc(Long userId,
+                                                                                    LocalDate start);
 
     /** Plans whose period contains {@code date}, ACTIVE first, then newest. */
     @EntityGraph(attributePaths = {"limits", "limits.category"})

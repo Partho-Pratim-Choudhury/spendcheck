@@ -8,6 +8,9 @@ import com.parthopratim.spendcheck.ledger.CategoryKind;
 import com.parthopratim.spendcheck.ledger.CategoryRepository;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -22,21 +25,37 @@ public class SeedRunner implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SeedRunner.class);
 
-    /** A default category; also the category set the NLU eval runs against. */
-    public record Seed(String name, CategoryKind kind, List<String> aliases) {}
+    /**
+     * A default category; also the category set the NLU eval runs against. {@code brands} are merchant names (a
+     * misheard one may be snapped onto them), {@code words} generic aliases; both are seeded as aliases.
+     */
+    public record Seed(String name, CategoryKind kind, List<String> brands, List<String> words) {
+
+        /** The aliases seeded for the category: brands, then words. */
+        public List<String> aliases() {
+            return Stream.concat(brands.stream(), words.stream()).toList();
+        }
+    }
 
     public static final List<Seed> DEFAULT_CATEGORIES = List.of(
-            new Seed("Food", CategoryKind.WANT, List.of("swiggy", "zomato", "dinner", "lunch", "cafe", "chai")),
-            new Seed("Groceries", CategoryKind.NEED, List.of("dmart", "blinkit", "zepto", "bigbasket", "grocery")),
-            new Seed("Shopping", CategoryKind.WANT, List.of("myntra", "amazon", "flipkart", "clothes", "shoes")),
-            new Seed("Travel", CategoryKind.NEED, List.of("uber", "ola", "rapido", "metro", "auto", "petrol")),
-            new Seed("Bills", CategoryKind.NEED, List.of("electricity", "wifi", "recharge", "gas")),
-            new Seed("Fun", CategoryKind.WANT, List.of("movie", "pvr", "netflix", "outing")),
-            new Seed("Health", CategoryKind.NEED, List.of("medicine", "doctor", "pharmacy", "gym")),
-            new Seed("Misc", CategoryKind.WANT, List.of()),
-            new Seed("Rent", CategoryKind.FIXED, List.of("rent")),
-            new Seed("EMI", CategoryKind.FIXED, List.of("emi")),
-            new Seed("SIP", CategoryKind.FIXED, List.of("sip", "mutual fund")));
+            new Seed("Food", CategoryKind.WANT, List.of("swiggy", "zomato"), List.of("dinner", "lunch", "cafe", "chai")),
+            new Seed("Groceries", CategoryKind.NEED, List.of("dmart", "blinkit", "zepto", "bigbasket"),
+                    List.of("grocery")),
+            new Seed("Shopping", CategoryKind.WANT, List.of("myntra", "amazon", "flipkart"),
+                    List.of("clothes", "shoes")),
+            new Seed("Travel", CategoryKind.NEED, List.of("uber", "ola", "rapido"),
+                    List.of("metro", "auto", "petrol")),
+            new Seed("Bills", CategoryKind.NEED, List.of(), List.of("electricity", "wifi", "recharge", "gas")),
+            new Seed("Fun", CategoryKind.WANT, List.of("pvr", "netflix"), List.of("movie", "outing")),
+            new Seed("Health", CategoryKind.NEED, List.of(), List.of("medicine", "doctor", "pharmacy", "gym")),
+            new Seed("Misc", CategoryKind.WANT, List.of(), List.of()),
+            new Seed("Rent", CategoryKind.FIXED, List.of(), List.of("rent")),
+            new Seed("EMI", CategoryKind.FIXED, List.of(), List.of("emi")),
+            new Seed("SIP", CategoryKind.FIXED, List.of(), List.of("sip", "mutual fund")));
+
+    /** Every seeded brand alias. */
+    public static final Set<String> BRANDS = DEFAULT_CATEGORIES.stream().flatMap(c -> c.brands().stream())
+            .collect(Collectors.toUnmodifiableSet());
 
     private final AppProperties props;
     private final UserRepository users;

@@ -10,8 +10,7 @@ import com.parthopratim.spendcheck.ledger.CategoryDtos.CreateCategoryRequest;
 import com.parthopratim.spendcheck.ledger.CategoryDtos.UpdateCategoryRequest;
 import com.parthopratim.spendcheck.plan.BudgetInputs;
 import com.parthopratim.spendcheck.plan.BudgetPlan;
-import com.parthopratim.spendcheck.plan.BudgetPlanRepository;
-import com.parthopratim.spendcheck.plan.PlanStatus;
+import com.parthopratim.spendcheck.plan.PlanService;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.stereotype.Service;
@@ -21,9 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class CategoryService {
 
     private final CategoryRepository categories;
-    private final BudgetPlanRepository plans;
+    private final PlanService plans;
 
-    public CategoryService(CategoryRepository categories, BudgetPlanRepository plans) {
+    public CategoryService(CategoryRepository categories, PlanService plans) {
         this.categories = categories;
         this.plans = plans;
     }
@@ -48,6 +47,9 @@ public class CategoryService {
 
     @Transactional
     public CategoryResponse update(long userId, long id, UpdateCategoryRequest req) {
+        // a kind change is checked against the ACTIVE plan: take the user lock first, as plan writes do, so a
+        // concurrent PUT /plans/current or rollover can't slip in between the check and the change
+        BudgetPlan active = req.kind() != null ? plans.lockActiveUpToDate(userId).orElse(null) : null;
         Category c = categories.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NotFoundException("Category " + id + " not found."));
         if (req.name() != null) {
@@ -58,7 +60,7 @@ public class CategoryService {
             c.setName(name);
         }
         if (req.kind() != null && req.kind() != c.getKind()) {
-            checkKindChangeKeepsPlanValid(userId, c, req.kind());
+            checkKindChangeKeepsPlanValid(active, c, req.kind());
             c.setKind(req.kind());
         }
         if (req.aliases() != null) {
@@ -73,10 +75,10 @@ public class CategoryService {
 
     /**
      * A kind change reclassifies the category's limit in the ACTIVE plan (to or from FIXED), which moves the plan's
-     * discretionary amount; refuse it when that would go negative, as {@code PUT /plans/current} would.
+     * discretionary amount; refuse it when that would go negative, as {@code PUT /plans/current} would. The caller
+     * holds the user lock and passes the rolled-forward ACTIVE plan (or null).
      */
-    private void checkKindChangeKeepsPlanValid(long userId, Category c, CategoryKind newKind) {
-        BudgetPlan plan = plans.findByUserIdAndStatus(userId, PlanStatus.ACTIVE).orElse(null);
+    private static void checkKindChangeKeepsPlanValid(BudgetPlan plan, Category c, CategoryKind newKind) {
         if (plan == null || plan.getLimits().stream().noneMatch(l -> l.getCategory().getId().equals(c.getId()))) {
             return;
         }

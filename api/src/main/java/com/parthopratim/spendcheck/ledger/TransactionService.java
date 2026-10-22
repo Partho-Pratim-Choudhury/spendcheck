@@ -78,7 +78,8 @@ public class TransactionService {
         }
         Category category = usableCategory(userId, req.categoryId());
         checkSpentAt(req.spentAt());
-        if (req.rawInputId() != null && !rawInputs.existsByIdAndUserId(req.rawInputId(), userId)) {
+        // FOR SHARE until commit: the purge job can't delete the raw input between this check and the insert
+        if (req.rawInputId() != null && rawInputs.lockForShare(req.rawInputId(), userId).isEmpty()) {
             throw new FieldValidationException("rawInputId", "raw input does not exist");
         }
         Transaction t = new Transaction(req.id(), userId, req.amountPaise(), category, blankToNull(req.merchant()),

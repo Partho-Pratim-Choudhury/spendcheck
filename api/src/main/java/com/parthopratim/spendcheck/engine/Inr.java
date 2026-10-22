@@ -6,7 +6,9 @@ import java.math.RoundingMode;
 
 /**
  * Formats paise as whole rupees for message text, rounding half-up (away from zero): {@code ₹1,20,000},
- * {@code ₹1,235}, {@code -₹500}. JSON fields keep exact paise; only text is rounded.
+ * {@code ₹1,235}, {@code -₹500}. JSON fields keep exact paise; only text is rounded. Amounts the user may still
+ * spend ("left", "safe to spend", "under") use {@link #formatDown} so they are never overstated; an overflow uses
+ * {@link #formatUp} so it is never understated.
  */
 public final class Inr {
 
@@ -20,6 +22,11 @@ public final class Inr {
     /** Rounded up (away from zero) to a whole rupee, for amounts that must never be understated ("₹1 over"). */
     public static String formatUp(long paise) {
         return rupees(paise, RoundingMode.UP);
+    }
+
+    /** Floored to a whole rupee, for amounts that must never be overstated ("₹X left", "safe to spend ₹X"). */
+    public static String formatDown(long paise) {
+        return rupees(paise, RoundingMode.FLOOR);
     }
 
     private static String rupees(long paise, RoundingMode mode) {

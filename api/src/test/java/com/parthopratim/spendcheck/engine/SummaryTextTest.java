@@ -19,14 +19,14 @@ class SummaryTextTest {
     @Test
     void underSingleSpend() {
         assertThat(SummaryText.daily(TODAY, TODAY, 50_000, 1, 161_350, 1_840_000, 5_000_000, 5_210_000, 0))
-                .isEqualTo("Today ₹500 across 1 spend — ₹1,114 under today's safe spend. "
+                .isEqualTo("Today ₹500 across 1 spend — ₹1,113 under today's safe spend. "
                         + "Month: ₹18,400 of ₹50,000, projected ₹52,100.");
     }
 
     @Test
     void amountsAreWholeRupees() {
         assertThat(SummaryText.daily(TODAY, TODAY, 50_050, 1, 161_349, 1_840_049, 5_000_000, 1_210_937, 12_345))
-                .isEqualTo("Today ₹501 across 1 spend — ₹1,113 under today's safe spend. "
+                .isEqualTo("Today ₹501 across 1 spend — ₹1,112 under today's safe spend. "
                         + "Month: ₹18,400 of ₹50,000, projected ₹12,109. Skipping spends saved ₹123.");
     }
 

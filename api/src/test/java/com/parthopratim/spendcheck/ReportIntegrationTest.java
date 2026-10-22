@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -143,6 +144,26 @@ class ReportIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void trendEndsAtTheViewedPlanWithUpToFiveEarlierOnes() throws Exception {
+        TestUser u = newUser(7);
+        today(OCT_22);
+        putReferencePlan(u);
+        today(LocalDate.of(2027, 5, 10));
+        mvc.perform(as(u, get("/api/v1/plans/current"))).andExpect(status().isOk());   // rolls Nov..May: 8 plans
+        JsonNode list = readJson(mvc.perform(as(u, get("/api/v1/plans"))).andExpect(jsonPath("$", hasSize(8))));
+        long april = list.get(1).get("id").asLong();
+        long december = list.get(5).get("id").asLong();
+        mvc.perform(as(u, get("/api/v1/reports/monthly?planId=" + april)))
+                .andExpect(jsonPath("$.plan.periodStart").value("2027-04-07"))
+                .andExpect(jsonPath("$.trend[*].periodStart", contains("2026-11-07", "2026-12-07", "2027-01-07",
+                        "2027-02-07", "2027-03-07", "2027-04-07")))
+                .andExpect(jsonPath("$.trend[5].planId").value(april));
+        mvc.perform(as(u, get("/api/v1/reports/monthly?planId=" + december)))
+                .andExpect(jsonPath("$.trend[*].periodStart", contains("2026-10-07", "2026-11-07", "2026-12-07")))
+                .andExpect(jsonPath("$.trend[2].planId").value(december));
+    }
+
+    @Test
     void topWantLabelIsTheMostUsedSpellingAndFixedSpendsStayOutOfNeedsAndWants() throws Exception {
         TestUser u = newUser(7);
         today(OCT_22);
@@ -183,7 +204,7 @@ class ReportIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.month.projectedPaise").value(1_705_000))
                 .andExpect(jsonPath("$.month.savingsAtRiskPaise").value(0))
                 .andExpect(jsonPath("$.pausesSavedPaise").value(0))
-                .andExpect(jsonPath("$.text").value("Today ₹1,800 across 2 spends — ₹888 under today's safe "
+                .andExpect(jsonPath("$.text").value("Today ₹1,800 across 2 spends — ₹887 under today's safe "
                         + "spend. Month: ₹8,800 of ₹50,000, projected ₹17,050."));
     }
 
@@ -200,7 +221,7 @@ class ReportIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.overPaise").value(0))
                 .andExpect(jsonPath("$.month.spentPaise").value(700_000))
                 .andExpect(jsonPath("$.month.projectedPaise").value(700_000L * 31 / 9))
-                .andExpect(jsonPath("$.text").value("On 15 Oct 2026 ₹1,200 across 1 spend — ₹722 under the "
+                .andExpect(jsonPath("$.text").value("On 15 Oct 2026 ₹1,200 across 1 spend — ₹721 under the "
                         + "day's safe spend. Month: ₹7,000 of ₹50,000, projected ₹24,111."));
         mvc.perform(as(u, get("/api/v1/summary/daily?date=2026-10-12")))
                 .andExpect(jsonPath("$.overPaise").value(580_000 - 5_000_000 / 26));

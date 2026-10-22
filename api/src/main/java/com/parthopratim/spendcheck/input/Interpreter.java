@@ -1,5 +1,6 @@
 package com.parthopratim.spendcheck.input;
 
+import com.parthopratim.spendcheck.config.SeedRunner;
 import com.parthopratim.spendcheck.engine.Inr;
 import com.parthopratim.spendcheck.input.InputDtos.FollowUp;
 import com.parthopratim.spendcheck.ledger.CategoryKind;
@@ -49,11 +50,12 @@ public final class Interpreter {
     private static final BigDecimal MIN_RUPEES = new BigDecimal("0.005");
 
     /**
-     * Seeded merchant aliases a misheard or mistyped merchant may be snapped onto. Generic aliases ("lunch",
-     * "shoes", "dinner") are never snap targets: a one-letter difference there is usually a different word.
+     * Seeded brand aliases ({@link SeedRunner.Seed#brands()}) a misheard or mistyped merchant may be snapped onto,
+     * if at least {@link #FUZZY_MIN_LENGTH} long (shorter ones like "uber" only ever match exactly). Generic aliases
+     * ("lunch", "shoes", "dinner") are never snap targets: a one-letter difference there is usually a different word.
      */
-    static final Set<String> BRAND_ALIASES = Set.of("swiggy", "zomato", "dmart", "blinkit", "zepto", "bigbasket",
-            "myntra", "amazon", "flipkart", "uber", "ola", "rapido", "netflix", "pvr");
+    static final Set<String> BRAND_ALIASES = SeedRunner.BRANDS.stream().filter(b -> b.length() >= FUZZY_MIN_LENGTH)
+            .collect(Collectors.toUnmodifiableSet());
 
     /** Brands whose casing title-case gets wrong. Keys: lower case, no spaces/punctuation. */
     private static final Map<String, String> BRAND_CASING = Map.ofEntries(
@@ -191,7 +193,7 @@ public final class Interpreter {
     private static Interpretation query(Extraction e, String text, List<InputCategory> active, boolean unsure) {
         if (unsure) {
             return new Interpretation(InputIntent.QUERY, null, null, null, null, null, null, e.queryType(),
-                    new FollowUp("Not sure I got that. " + QUERY_CHOICES, List.of(MISSING_CONFIRMATION)));
+                    new FollowUp("Not sure I got that. " + QUERY_CHOICES, List.of(MISSING_QUERY)));
         }
         String asked = e.queryCategory() != null && !e.queryCategory().isBlank() ? e.queryCategory() : e.category();
         QueryType type = e.queryType();
@@ -343,7 +345,7 @@ public final class Interpreter {
             for (InputCategory c : categories) {
                 for (String alias : c.aliases()) {
                     String ak = key(alias);
-                    if (ak.length() >= FUZZY_MIN_LENGTH && BRAND_ALIASES.contains(ak) && withinOneEdit(key, ak)) {
+                    if (BRAND_ALIASES.contains(ak) && withinOneEdit(key, ak)) {
                         return truncate(casing(alias.toLowerCase(Locale.ROOT)), MAX_MERCHANT);
                     }
                 }

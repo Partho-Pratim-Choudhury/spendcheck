@@ -214,9 +214,9 @@ public final class BudgetEngine {
         }
 
         String message = switch (level) {
-            case GREEN -> "Fits. " + categoryName + " left after: " + Inr.format(catLeft - amountPaise) + ".";
+            case GREEN -> "Fits. " + categoryName + " left after: " + Inr.formatDown(catLeft - amountPaise) + ".";
             case AMBER -> "Careful. " + capitalise(reasons.get(0)) + ". " + categoryName + " left after: "
-                    + Inr.format(Math.max(0, catLeft - amountPaise)) + ".";
+                    + Inr.formatDown(Math.max(0, catLeft - amountPaise)) + ".";
             case RED -> "Over plan. " + Inr.formatUp(overflow) + " more than " + categoryName
                     + " has left — it comes out of savings."
                     + (goalDelayDays != null ? " " + goalName + " delayed ~" + goalDelayDays + " days." : "");

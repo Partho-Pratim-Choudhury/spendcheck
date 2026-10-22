@@ -25,7 +25,7 @@ public final class SummaryText {
         StringBuilder sb = new StringBuilder();
         if (count == 0) {
             sb.append(isToday ? "No spends today" : "No spends on " + DAY.format(date))
-                    .append(" — ").append(Inr.format(budgetPaise)).append(" of ").append(safe).append(" unused.");
+                    .append(" — ").append(Inr.formatDown(budgetPaise)).append(" of ").append(safe).append(" unused.");
         } else {
             sb.append(when).append(' ').append(Inr.format(spentPaise)).append(" across ").append(count)
                     .append(count == 1 ? " spend" : " spends").append(" — ");
@@ -33,7 +33,7 @@ public final class SummaryText {
             if (diff > 0) {
                 sb.append(Inr.format(diff)).append(" over ").append(safe).append('.');
             } else if (diff < 0) {
-                sb.append(Inr.format(-diff)).append(" under ").append(safe).append('.');
+                sb.append(Inr.formatDown(-diff)).append(" under ").append(safe).append('.');
             } else {
                 sb.append("exactly ").append(safe).append('.');
             }

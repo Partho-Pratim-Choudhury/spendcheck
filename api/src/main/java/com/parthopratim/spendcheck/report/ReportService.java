@@ -53,7 +53,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ReportService {
 
-    private static final int TREND_PLANS = 6;
     private static final int TOP_WANTS = 5;
 
     private final PlanService planService;
@@ -120,7 +119,10 @@ public class ReportService {
                         : "No plan."));
         ZoneId zone = userTime.zone(userId);
         LocalDate today = userTime.today(zone);
-        List<SpendAggregate> rows = budgetInputs.spending(plan, zone);
+        // one query: the rows and the top wants' merchant display spellings
+        SpendAggregateRepository.Spending spending = aggregates.spending(userId, plan.getPeriodStart(),
+                plan.getPeriodEnd(), zone);
+        List<SpendAggregate> rows = spending.rows();
         BudgetInput in = BudgetInputs.input(plan, today, rows);
         MonthNumbers m = BudgetEngine.month(in);
         Map<Long, Category> cats = categoriesById(userId);
@@ -141,7 +143,6 @@ public class ReportService {
         long untagged = 0;
         long[] wantsByWeekday = new long[7];
         Map<String, long[]> wantGroups = new LinkedHashMap<>();
-        Map<String, String> merchantLabels = null;
         for (SpendAggregate a : rows) {
             if (!a.variable()) {
                 continue;
@@ -152,16 +153,9 @@ public class ReportService {
             } else if (tag == NeedOrWant.WANT) {
                 wants += a.totalPaise();
                 wantsByWeekday[a.day().getDayOfWeek().getValue() - 1] += a.totalPaise();
-                String label;
-                if (a.merchantKey() != null) {
-                    if (merchantLabels == null) {
-                        merchantLabels = aggregates.merchantLabels(userId, plan.getPeriodStart(), plan.getPeriodEnd(),
-                                zone);
-                    }
-                    label = merchantLabels.getOrDefault(a.merchantKey(), a.merchantKey());
-                } else {
-                    label = name(cats, a.categoryId());
-                }
+                String label = a.merchantKey() != null
+                        ? spending.merchantLabels().getOrDefault(a.merchantKey(), a.merchantKey())
+                        : name(cats, a.categoryId());
                 long[] g = wantGroups.computeIfAbsent(label, k -> new long[2]);
                 g[0] += a.count();
                 g[1] += a.totalPaise();
@@ -189,12 +183,14 @@ public class ReportService {
     }
 
     /**
-     * Up to the last six plans up to and including {@code plan}, oldest first; one query for their limits and one
-     * aggregate query for their spending.
+     * {@code plan} and up to five plans that started before it, oldest first, so {@code plan} is always the last
+     * point; one query for their limits and one aggregate query for their spending.
      */
     private List<TrendPoint> trend(long userId, BudgetPlan plan, ZoneId zone) {
-        List<Long> ids = plans.findTop6ByUserIdAndPeriodStartLessThanEqualOrderByPeriodStartDescIdDesc(userId,
-                plan.getPeriodStart()).stream().map(BudgetPlan::getId).toList();
+        List<Long> ids = new ArrayList<>();
+        plans.findTop5ByUserIdAndPeriodStartLessThanOrderByPeriodStartDescIdDesc(userId, plan.getPeriodStart())
+                .forEach(p -> ids.add(p.getId()));
+        ids.add(plan.getId());
         List<BudgetPlan> window = plans.findWithLimitsByIdIn(ids).stream()
                 .sorted(Comparator.comparing(BudgetPlan::getPeriodStart).thenComparing(BudgetPlan::getId))
                 .toList();

@@ -54,8 +54,9 @@ goalDelayDays  = primary goal with monthlyContribution > 0 and overflow > 0:
 `reasons` (in this order, only those that apply): "over category limit", "over today's safe
 spend", "uses more than half of what's left in category".
 
-Message templates (₹ with Indian grouping, whole rupees rounded half-up; the RED overflow amount
-rounds up so a 1-paise overflow never reads "₹0"):
+Message templates (₹ with Indian grouping, whole rupees). Rounding never flatters the user:
+amounts left / safe to spend round **down**, the RED overflow rounds **up** (a 1-paise overflow
+never reads "₹0"), everything else (spent, projected, limits, overages) rounds half-up:
 - GREEN: "Fits. {category} left after: ₹{catLeft − X}."
 - AMBER: "Careful. {first reason, capitalised}. {category} left after: ₹{max(0,catLeft − X)}."
 - RED:   "Over plan. ₹{overflow} more than {category} has left — it comes out of savings."

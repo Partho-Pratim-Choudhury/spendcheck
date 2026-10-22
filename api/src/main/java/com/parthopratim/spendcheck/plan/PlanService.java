@@ -105,6 +105,16 @@ public class PlanService {
     }
 
     /**
+     * Takes the user lock (as plan writes do), rolls the ACTIVE plan forward if its period has ended and returns
+     * it; the lock is held until the caller's read-write transaction ends.
+     */
+    public Optional<BudgetPlan> lockActiveUpToDate(long userId) {
+        User user = lock(userId);
+        rollForwardLocked(user, userTime.today(user));
+        return plans.findByUserIdAndStatus(userId, PlanStatus.ACTIVE);
+    }
+
+    /**
      * The daily job's work: rolls forward every user whose ACTIVE plan has ended, each in its own transaction.
      * Only users whose plan ended before the latest "today" on Earth (UTC+14) are candidates, so nobody due is
      * missed whatever their tz; each is re-checked in their own tz under the lock.
@@ -132,6 +142,9 @@ public class PlanService {
 
     @Transactional
     public PlanResponse put(long userId, PutPlanRequest req) {
+        // lock before reading the categories' kinds, so a concurrent kind change (which takes the same lock) can't
+        // invalidate the fixed total checked below
+        User user = lock(userId);
         List<Category> limitCategories = validLimitCategories(userId, req.limits());
         long fixedTotal = 0;
         for (int i = 0; i < limitCategories.size(); i++) {
@@ -144,7 +157,6 @@ public class PlanService {
                     "income minus fixed limits and savings target must not be negative");
         }
 
-        User user = lock(userId);
         LocalDate today = userTime.today(user);
         rollForwardLocked(user, today);
         BudgetPlan plan = plans.findByUserIdAndStatus(userId, PlanStatus.ACTIVE).orElse(null);

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -291,6 +292,23 @@ class InputIntegrationTest extends IntegrationTestSupport {
                 .andExpect(status().isCreated());
         text(u, "goal status").andExpect(jsonPath("$.answer.text")
                 .value("Goa trip: ₹20,000 of ₹50,000 saved (40%). On track for Jan 2027."));
+    }
+
+    @Test
+    void goalStatusTellsNoContributionFromBeyondTheHorizon() throws Exception {
+        TestUser u = planned();
+        extractor.respond(query(QueryType.GOAL_STATUS, null));
+        // ₹50,000 at ₹1/month: 50,000 months, past the 1,200-month horizon, so onTrackDate is null
+        long id = readJson(mvc.perform(asJson(u, post("/api/v1/goals"), Map.of("name", "Car",
+                "targetPaise", 50_000 * RUPEE, "savedPaise", 0, "monthlyContributionPaise", RUPEE)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.onTrackDate").value(Matchers.nullValue()))).get("id").asLong();
+        text(u, "goal status").andExpect(jsonPath("$.answer.text").value("Car: ₹0 of ₹50,000 saved (0%). At ₹1/month "
+                + "it would take over 100 years — raise the contribution to get there sooner."));
+        mvc.perform(asJson(u, patch("/api/v1/goals/" + id), Map.of("monthlyContributionPaise", 0)))
+                .andExpect(status().isOk());
+        text(u, "goal status").andExpect(jsonPath("$.answer.text").value("Car: ₹0 of ₹50,000 saved (0%). Set a "
+                + "monthly contribution to see when you'll get there."));
     }
 
     @Test

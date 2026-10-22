@@ -97,10 +97,10 @@ public class InputAnswers {
             case CATEGORY_LEFT -> categoryLeft(in, category);
             case TOTAL_SPENT -> "You've spent " + Inr.format(m.spentPaise()) + " of " + Inr.format(m.discretionaryPaise())
                     + " this period" + (m.leftPaise() >= 0
-                    ? " — " + Inr.format(m.leftPaise()) + " left with " + days(m.daysLeft()) + " to go."
+                    ? " — " + Inr.formatDown(m.leftPaise()) + " left with " + days(m.daysLeft()) + " to go."
                     : " — " + Inr.format(-m.leftPaise()) + " over plan.");
             case SAFE_TODAY -> m.todayLeftPaise() > 0
-                    ? "You can safely spend " + Inr.format(m.todayLeftPaise()) + " today"
+                    ? "You can safely spend " + Inr.formatDown(m.todayLeftPaise()) + " today"
                     + (m.spentTodayPaise() > 0 ? " (" + Inr.format(m.spentTodayPaise()) + " spent so far)." : ".")
                     : "You've used today's safe spend" + (m.todayLeftPaise() < 0
                     ? " — " + Inr.format(-m.todayLeftPaise()) + " over." : ".")
@@ -122,7 +122,7 @@ public class InputAnswers {
         }
         long left = limit - spent;
         return left >= 0
-                ? name + ": " + Inr.format(left) + " left of " + Inr.format(limit) + " (" + Inr.format(spent)
+                ? name + ": " + Inr.formatDown(left) + " left of " + Inr.format(limit) + " (" + Inr.format(spent)
                 + " spent)."
                 : name + " is " + Inr.format(-left) + " over its " + Inr.format(limit) + " limit.";
     }
@@ -145,6 +145,11 @@ public class InputAnswers {
             } else {
                 sb.append('.');
             }
+        } else if (g.monthlyContributionPaise() > 0) {
+            // contributing, but the date is beyond the engine's horizon (onTrackDate stays null in the JSON)
+            sb.append(" At ").append(Inr.format(g.monthlyContributionPaise())).append("/month it would take over ")
+                    .append(BudgetEngine.ON_TRACK_HORIZON_MONTHS / 12)
+                    .append(" years — raise the contribution to get there sooner.");
         } else {
             sb.append(" Set a monthly contribution to see when you'll get there.");
         }

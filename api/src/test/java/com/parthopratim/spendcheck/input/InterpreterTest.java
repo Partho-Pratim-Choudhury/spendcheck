@@ -2,6 +2,7 @@ package com.parthopratim.spendcheck.input;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.parthopratim.spendcheck.config.SeedRunner;
 import com.parthopratim.spendcheck.input.Interpreter.Interpretation;
 import com.parthopratim.spendcheck.ledger.CategoryKind;
 import com.parthopratim.spendcheck.ledger.NeedOrWant;
@@ -152,6 +153,14 @@ class InterpreterTest {
             // four letters or fewer never snap ("ubar" is not Uber)
             assertThat(Interpreter.cleanMerchant("ubar", CATS)).isEqualTo("Ubar");
             assertThat(Interpreter.cleanMerchant("amazn", CATS)).isEqualTo("Amazon");
+        }
+
+        @Test
+        void brandSnapTargetsComeFromTheSeedBrands() {
+            assertThat(Interpreter.BRAND_ALIASES).contains("swiggy", "zomato", "bigbasket", "netflix")
+                    .doesNotContain("uber", "ola", "pvr", "dinner", "shoes")   // too short, or generic
+                    .allSatisfy(b -> assertThat(b).hasSizeGreaterThanOrEqualTo(5));
+            assertThat(SeedRunner.BRANDS).contains("uber", "ola", "pvr");
         }
 
         @Test
@@ -322,7 +331,7 @@ class InterpreterTest {
             Extraction e = new Extraction(InputIntent.QUERY, null, null, null, null, null, null,
                     QueryType.TOTAL_SPENT, null, 0.4);
             Interpretation in = run(e, "spent?");
-            assertThat(in.followUp().missing()).containsExactly("confirmation");
+            assertThat(in.followUp().missing()).containsExactly("query");
             assertThat(in.followUp().question()).contains("total spent");
             Extraction sure = new Extraction(InputIntent.QUERY, null, null, null, null, null, null,
                     QueryType.TOTAL_SPENT, null, 0.7);

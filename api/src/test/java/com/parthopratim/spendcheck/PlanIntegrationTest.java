@@ -426,6 +426,28 @@ class PlanIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void kindChangeIsCheckedAgainstTheRolledForwardPlan() throws Exception {
+        TestUser u = newUser(7);
+        today(OCT_22);
+        Map<String, Long> limits = new LinkedHashMap<>();
+        limits.put("Rent", 25_000 * RUPEE);
+        limits.put("Groceries", 10_000 * RUPEE);
+        // discretionary = 1,00,000 − 25,000 − 70,000 = 5,000: Groceries as FIXED would not fit
+        mvc.perform(asJson(u, put("/api/v1/plans/current"), planBody(u, 100_000 * RUPEE, 70_000 * RUPEE, limits)))
+                .andExpect(status().isOk());
+        mvc.perform(asJson(u, patch("/api/v1/categories/" + u.cat("Groceries")), Map.of("archived", true)))
+                .andExpect(status().isOk());
+        // October has ended: the rolled-forward plan drops the archived category's limit, so the change fits
+        today(LocalDate.of(2026, 11, 8));
+        mvc.perform(asJson(u, patch("/api/v1/categories/" + u.cat("Groceries")), Map.of("kind", "FIXED")))
+                .andExpect(status().isOk());
+        mvc.perform(as(u, get("/api/v1/plans")))
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].periodStart").value("2026-11-07"))
+                .andExpect(jsonPath("$[0].status").value("ACTIVE"));
+    }
+
+    @Test
     void dailyJobFindsUsersWhoseDayStartsAheadOfTheServer() throws Exception {
         // UTC+14: at 10:30Z on 11-06 it is already 11-07 there (still 11-06 in IST)
         User kiribati = users.save(new User("it-" + UUID.randomUUID() + "@test.local", "{noop}unused", "K",

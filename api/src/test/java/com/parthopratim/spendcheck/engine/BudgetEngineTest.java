@@ -230,7 +230,7 @@ class BudgetEngineTest {
     @CsvSource(nullValues = "null", delimiter = '|', value = {
             // limit | spent | today | amount | level | overflow | reasons (;-separated)                 | message
             "10000 | 6000  | 0     | 2000   | GREEN | 0        |                                          | Fits. Food left after: ₹20.",
-            "10000 | 6000  | 0     | 2001   | AMBER | 0        | half                                     | Careful. Uses more than half of what's left in category. Food left after: ₹20.",
+            "10000 | 6000  | 0     | 2001   | AMBER | 0        | half                                     | Careful. Uses more than half of what's left in category. Food left after: ₹19.",
             "10000 | 6000  | 0     | 4000   | AMBER | 0        | half                                     | Careful. Uses more than half of what's left in category. Food left after: ₹0.",
             "10000 | 6000  | 0     | 4001   | RED   | 1        | category;half                            | Over plan. ₹1 more than Food has left — it comes out of savings.",
             "10000 | 10000 | 0     | 1      | RED   | 1        | category;half                            | Over plan. ₹1 more than Food has left — it comes out of savings.",
@@ -238,11 +238,11 @@ class BudgetEngineTest {
             "null  | 0     | 0     | 100    | RED   | 100      | category;half                            | Over plan. ₹1 more than Food has left — it comes out of savings.",
             // today budget = (100000 − 6000) / 10 = 9400
             "100000| 6000  | 0     | 9400   | GREEN | 0        |                                          | Fits. Food left after: ₹846.",
-            "100000| 6000  | 0     | 9401   | AMBER | 0        | today                                    | Careful. Over today's safe spend. Food left after: ₹846.",
+            "100000| 6000  | 0     | 9401   | AMBER | 0        | today                                    | Careful. Over today's safe spend. Food left after: ₹845.",
             // today budget = (100000 − 6000) / 10 = 9400 with 9000 already spent today
             "100000| 6000  | 9000  | 400    | GREEN | 0        |                                          | Fits. Food left after: ₹936.",
-            "100000| 6000  | 9000  | 401    | AMBER | 0        | today                                    | Careful. Over today's safe spend. Food left after: ₹936.",
-            "50000 | 30000 | 9000  | 10001  | AMBER | 0        | today;half                               | Careful. Over today's safe spend. Food left after: ₹100.",
+            "100000| 6000  | 9000  | 401    | AMBER | 0        | today                                    | Careful. Over today's safe spend. Food left after: ₹935.",
+            "50000 | 30000 | 9000  | 10001  | AMBER | 0        | today;half                               | Careful. Over today's safe spend. Food left after: ₹99.",
             "50000 | 30000 | 9000  | 20001  | RED   | 1        | category;today;half                      | Over plan. ₹1 more than Food has left — it comes out of savings.",
     })
     void verdictBoundaries(Long limit, long spent, long today, long amount, VerdictLevel level, long overflow,

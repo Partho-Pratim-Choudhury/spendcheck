@@ -39,4 +39,11 @@ class InrTest {
     void formatUpNeverUnderstates(long paise, String expected) {
         assertThat(Inr.formatUp(paise)).isEqualTo(expected);
     }
+
+    @ParameterizedTest(name = "{0} paise down -> {1}")
+    @CsvSource(delimiter = '|', value = {"0 | ₹0", "1 | ₹0", "99 | ₹0", "100 | ₹1", "199 | ₹1", "123456 | ₹1,234",
+            "-1 | -₹1"})
+    void formatDownNeverOverstates(long paise, String expected) {
+        assertThat(Inr.formatDown(paise)).isEqualTo(expected);
+    }
 }
