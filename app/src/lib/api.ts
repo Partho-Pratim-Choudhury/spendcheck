@@ -150,6 +150,8 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
   } catch (e) {
     if (external?.aborted) throw e;
     const timedOut = controller.signal.aborted;
+    // Only the error message (no URL params, body or token) — visible via `adb logcat -s ReactNativeJS`.
+    console.warn(`[api] ${path} failed before a response: ${e instanceof Error ? e.message : String(e)}`);
     throw new ApiError({
       status: 0,
       title: timedOut ? 'Request timed out' : 'Network error',

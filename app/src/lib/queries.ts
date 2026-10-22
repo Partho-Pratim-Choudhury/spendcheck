@@ -1,4 +1,5 @@
 import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { File } from 'expo-file-system';
 
 import { ApiError, apiFetch, isRetryableError } from './api';
 import { addDays, toYmd } from './dates';
@@ -193,7 +194,10 @@ export class VoiceUploadError extends Error {
 export async function sendVoiceInput(uri: string) {
   const form = new FormData();
   // React Native's FormData accepts a { uri, name, type } file descriptor.
-  form.append('audio', { uri, name: 'voice.m4a', type: 'audio/mp4' } as unknown as Blob);
+  // Expo's fetch only accepts Blob-like parts (it rejects React Native's { uri, name, type } descriptor);
+  // expo-file-system's File implements Blob and is read from disk when the request is built.
+  const fileUri = uri.startsWith('/') ? `file://${uri}` : uri;
+  form.append('audio', new File(fileUri), 'voice.m4a');
   try {
     const r = await apiFetch<InputResult>('/inputs/voice', { method: 'POST', body: form, timeoutMs: 30_000 });
     deleteLocalFile(uri);
