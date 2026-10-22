@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { decorative } from '@/components/a11y';
 import { formatINR } from '@/lib/money';
 import type { NeedOrWant } from '@/lib/types';
 import { colors, radii, spacing } from '@/theme';
@@ -11,7 +12,7 @@ export function UserBubble({ text, voice, pending }: { text: string; voice: bool
       <View style={styles.user} accessibilityLabel={voice ? `You said: ${text || 'voice message'}` : `You: ${text}`}>
         {voice ? (
           <View style={styles.voiceRow}>
-            <Feather name="mic" size={14} color={colors.onPrimary} />
+            <Feather {...decorative} name="mic" size={14} color={colors.onPrimary} />
             <Text style={[styles.userText, styles.italic]}>{pending ? 'Transcribing…' : text ? `“${text}”` : 'Voice message'}</Text>
           </View>
         ) : (
@@ -37,7 +38,7 @@ export function ErrorBubble({ text, onRetry, disabled }: { text: string; onRetry
     <View style={styles.row}>
       <View style={[styles.bot, styles.botMuted]}>
         <View style={styles.voiceRow}>
-          <Feather name="cloud-off" size={14} color={colors.muted} />
+          <Feather {...decorative} name="cloud-off" size={14} color={colors.muted} />
           <Text style={[styles.botText, styles.mutedText, styles.shrink]}>{text}</Text>
         </View>
         {onRetry ? (
@@ -49,7 +50,7 @@ export function ErrorBubble({ text, onRetry, disabled }: { text: string; onRetry
             accessibilityState={{ disabled }}
             style={[styles.retry, disabled && styles.retryDisabled]}
             hitSlop={8}>
-            <Feather name="refresh-cw" size={14} color={colors.primary} />
+            <Feather {...decorative} name="refresh-cw" size={14} color={colors.primary} />
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         ) : null}
@@ -90,7 +91,7 @@ export function CompactLine({
   return (
     <View style={styles.row}>
       <View style={styles.line} accessibilityLabel={`${undone ? 'Undone: ' : 'Logged: '}${parts}`}>
-        <Feather name={undone ? 'rotate-ccw' : 'check'} size={14} color={undone ? colors.muted : colors.verdict.green.text} />
+        <Feather {...decorative} name={undone ? 'rotate-ccw' : 'check'} size={14} color={undone ? colors.muted : colors.verdict.green.text} />
         <Text style={[styles.lineText, undone && styles.undone]} numberOfLines={2}>
           {prefix ? `${prefix} ` : ''}
           {parts}
@@ -114,7 +115,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   userText: { color: colors.onPrimary, fontSize: 16, lineHeight: 22 },
-  italic: { fontStyle: 'italic', flexShrink: 1 },
+  // Android clips the overhang of the last italic glyph (here the closing quote) without a little end room.
+  italic: { fontStyle: 'italic', flexShrink: 1, paddingRight: 3 },
   voiceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   bot: {
     maxWidth: '86%',

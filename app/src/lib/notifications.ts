@@ -110,15 +110,15 @@ export async function setupDailyReminder(): Promise<void> {
   }
 }
 
-/** "Ask in 3 days": one-off reminder. Returns false when notifications aren't allowed. */
-export async function scheduleDeferReminder(title: string, body: string, days = 3): Promise<boolean> {
+/** "Ask in 3 days": one-off reminder at `date` (see deferReminderDate). Returns false when notifications aren't allowed. */
+export async function scheduleDeferReminder(title: string, body: string, date: Date): Promise<boolean> {
   try {
     if (!(await ensurePermission(true))) return false;
     await Notifications.scheduleNotificationAsync({
       content: { title, body, data: { url: '/chat' } },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: new Date(Date.now() + days * 86_400_000),
+        date,
         channelId: REMINDER_CHANNEL_ID,
       },
     });

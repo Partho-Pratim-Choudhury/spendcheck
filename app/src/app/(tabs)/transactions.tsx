@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, SectionList, StyleSheet, Text, View } from 'react-native';
 
+import { decorative } from '@/components/a11y';
 import { CategoryAvatar } from '@/components/CategoryAvatar';
 import { Chip, Tag } from '@/components/Chip';
 import { MoneyText } from '@/components/MoneyText';
@@ -135,7 +136,7 @@ function Row({ t, onPress }: { t: Transaction; onPress: () => void }) {
               bg={t.needOrWant === 'WANT' ? colors.verdict.amber.bg : colors.verdict.green.bg}
             />
           ) : null}
-          {t.source === 'VOICE' ? <Feather name="mic" size={12} color={colors.muted} /> : null}
+          {t.source === 'VOICE' ? <Feather {...decorative} name="mic" size={12} color={colors.muted} /> : null}
         </View>
       </View>
       <MoneyText paise={t.amountPaise} style={styles.rowAmount} />

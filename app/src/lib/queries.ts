@@ -20,6 +20,7 @@ import type {
   Plan,
   PlanSummary,
   PutPlanRequest,
+  RolloverPreview,
   Transaction,
   TransactionQuery,
   UpdateTransactionRequest,
@@ -216,6 +217,11 @@ export function useSavePlan() {
     onSuccess: (plan) => qc.setQueryData(queryKeys.planCurrent, plan),
     onSettled: () => invalidatePlanData(qc),
   });
+}
+
+/** Read-only: the period a rollover would create now. Fetched on demand, so not cached. */
+export function fetchRolloverPreview(): Promise<RolloverPreview> {
+  return apiFetch<RolloverPreview>('/plans/rollover/preview');
 }
 
 export function useRollover() {

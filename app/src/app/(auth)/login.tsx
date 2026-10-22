@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { decorative } from '@/components/a11y';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ApiError, checkServerHealth } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -175,7 +176,7 @@ export default function LoginScreen() {
               accessibilityRole="button"
               accessibilityLabel="Server settings"
               accessibilityState={{ expanded: serverOpen }}>
-              <Feather name={serverOpen ? 'chevron-down' : 'chevron-right'} size={16} color={colors.muted} />
+              <Feather {...decorative} name={serverOpen ? 'chevron-down' : 'chevron-right'} size={16} color={colors.muted} />
               <Text style={styles.serverToggleLabel}>Server settings</Text>
               {!serverOpen ? (
                 <Text style={styles.serverSummary} numberOfLines={1}>

@@ -33,6 +33,8 @@ public final class PlanDtos {
         }
     }
 
+    public record RolloverPreview(LocalDate periodStart, LocalDate periodEnd, int daysTotal) {}
+
     public record PutPlanRequest(
             @NotNull @Positive @Max(MAX_PLAN_AMOUNT_PAISE) Long incomePaise,
             @NotNull @PositiveOrZero @Max(MAX_PLAN_AMOUNT_PAISE) Long savingsTargetPaise,

@@ -36,6 +36,17 @@ export function addDays(ymd: string, n: number): string {
   return toYmd(d);
 }
 
+/** Local hour the "ask in 3 days" reminder fires at. */
+export const DEFER_REMINDER_HOUR = 10;
+
+/**
+ * When an "ask me later" reminder fires: `days` calendar days after `now`, at 10:00 device time
+ * (never at whatever odd hour the user deferred). DST-safe: built from local date parts.
+ */
+export function deferReminderDate(now: Date, days = 3): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, DEFER_REMINDER_HOUR, 0, 0, 0);
+}
+
 /** Whole days from a to b (b − a). */
 export function daysBetween(a: string, b: string): number {
   return Math.round((parseYmd(b).getTime() - parseYmd(a).getTime()) / 86_400_000);
@@ -45,6 +56,18 @@ export function daysBetween(a: string, b: string): number {
 export function shortDate(ymd: string): string {
   const d = parseYmd(ymd);
   return `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`;
+}
+
+/** "23 Oct" */
+export function dayMonth(ymd: string): string {
+  const d = parseYmd(ymd);
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+}
+
+/** 1 → "1st", 12 → "12th", 23 → "23rd". */
+export function ordinal(n: number): string {
+  const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
+  return `${n}${s}`;
 }
 
 /** "Oct 7 – Nov 6" */

@@ -9,6 +9,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { Alert, type GestureResponderEvent, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { decorative } from '@/components/a11y';
 import { deleteLocalFile } from '@/lib/files';
 import { colors, spacing } from '@/theme';
 
@@ -208,7 +209,7 @@ export function Composer({ onSendText, onSendVoice, disabled }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Send"
           style={({ pressed }) => [styles.round, { backgroundColor: pressed ? colors.primaryPressed : colors.primary }, disabled && styles.dim]}>
-          <Feather name="send" size={20} color={colors.onPrimary} />
+          <Feather {...decorative} name="send" size={20} color={colors.onPrimary} />
         </Pressable>
       ) : (
         <View
@@ -223,7 +224,7 @@ export function Composer({ onSendText, onSendVoice, disabled }: Props) {
           accessibilityLabel="Hold to record a voice message"
           accessibilityHint="Press and hold, speak, then release to send"
           style={[styles.round, styles.mic, recording && styles.micActive, cancelArmed && styles.micCancel, disabled && styles.dim]}>
-          <Feather name={cancelArmed ? 'x' : 'mic'} size={24} color={colors.onPrimary} />
+          <Feather {...decorative} name={cancelArmed ? 'x' : 'mic'} size={24} color={colors.onPrimary} />
         </View>
       )}
     </View>

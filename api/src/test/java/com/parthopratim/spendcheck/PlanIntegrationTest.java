@@ -248,6 +248,45 @@ class PlanIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void rolloverPreviewWithoutAnyPlanIs409() throws Exception {
+        TestUser u = newUser(7);
+        mvc.perform(as(u, get("/api/v1/plans/rollover/preview")))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(409));
+    }
+
+    @Test
+    void rolloverPreviewMatchesWhatRolloverCreatesAndChangesNothing() throws Exception {
+        // mid-period (far from salary day), early, late (plan already ended) and on salary day after auto rollover
+        assertPreviewMatchesRollover(LocalDate.of(2026, 10, 23), "2026-10-23", "2026-12-06", 45);
+        assertPreviewMatchesRollover(LocalDate.of(2026, 11, 5), "2026-11-05", "2026-12-06", 32);
+        assertPreviewMatchesRollover(LocalDate.of(2026, 11, 10), "2026-11-10", "2026-12-06", 27);
+        assertPreviewMatchesRollover(LocalDate.of(2026, 11, 7), "2026-11-07", "2026-12-06", 30);
+    }
+
+    private void assertPreviewMatchesRollover(LocalDate day, String start, String end, int days) throws Exception {
+        TestUser u = newUser(7);
+        today(OCT_22);
+        putReferencePlan(u);
+        today(day);
+        mvc.perform(as(u, get("/api/v1/plans/current"))); // settle any due auto rollover before counting plans
+        int before = readJson(mvc.perform(as(u, get("/api/v1/plans")))).size();
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(as(u, get("/api/v1/plans/rollover/preview")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.periodStart").value(start))
+                    .andExpect(jsonPath("$.periodEnd").value(end))
+                    .andExpect(jsonPath("$.daysTotal").value(days));
+        }
+        mvc.perform(as(u, get("/api/v1/plans"))).andExpect(jsonPath("$", hasSize(before)));
+        mvc.perform(as(u, post("/api/v1/plans/rollover")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.periodStart").value(start))
+                .andExpect(jsonPath("$.periodEnd").value(end));
+    }
+
+    @Test
     void salaryDayAffectsFuturePeriodsOnly() throws Exception {
         TestUser u = newUser(7);
         today(OCT_22);

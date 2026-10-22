@@ -41,6 +41,8 @@ Plan = {
 - `POST /plans/rollover` (no body) → 201 Plan. "Salary came today": closes the active plan (if any)
   and starts a new one at **today**. New `periodEnd` = (scheduled salary date nearest to today,
   moved one month forward) − 1 day. Copies income, savings and limits from the previous plan.
+- `GET /plans/rollover/preview` → `{ periodStart, periodEnd, daysTotal }`: the period
+  `POST /plans/rollover` would create if called now (read-only; 409 if the user has no plan).
 - `GET /plans` → `[{ id, periodStart, periodEnd, status }]` newest first (report month picker).
 - Auto rollover: also a daily job at 00:05 user tz — if the active plan ended, close it and create
   the next period (`periodStart = old end + 1`, end by the salary-day rule), copying amounts.

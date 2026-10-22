@@ -125,6 +125,15 @@ export interface Plan {
   dailyBudgetPaise: number;
 }
 
+/** What `POST /plans/rollover` would create now (`GET /plans/rollover/preview`). */
+export interface RolloverPreview {
+  /** YYYY-MM-DD */
+  periodStart: string;
+  /** YYYY-MM-DD (inclusive) */
+  periodEnd: string;
+  daysTotal: number;
+}
+
 export interface PlanSummary {
   id: number;
   periodStart: string;

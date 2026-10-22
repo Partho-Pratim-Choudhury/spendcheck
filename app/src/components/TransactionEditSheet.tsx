@@ -9,6 +9,7 @@ import type { NeedOrWant, Transaction, UpdateTransactionRequest } from '@/lib/ty
 import { ApiError } from '@/lib/api';
 import { colors, radii, spacing } from '@/theme';
 
+import { decorative } from './a11y';
 import { CategoryPicker } from './CategoryPicker';
 import { PrimaryButton } from './PrimaryButton';
 import { SegmentedToggle } from './SegmentedToggle';
@@ -108,7 +109,7 @@ function EditForm({ tx, onDone }: { tx: Transaction; onDone: () => void }) {
             accessibilityRole="button"
             accessibilityLabel="Previous day"
             style={styles.dateBtn}>
-            <Feather name="chevron-left" size={22} color={colors.ink} />
+            <Feather {...decorative} name="chevron-left" size={22} color={colors.ink} />
           </Pressable>
           <Text style={styles.dateText}>{day === today ? `Today · ${friendlyDate(day)}` : friendlyDate(day)}</Text>
           <Pressable
@@ -118,7 +119,7 @@ function EditForm({ tx, onDone }: { tx: Transaction; onDone: () => void }) {
             accessibilityLabel="Next day"
             accessibilityState={{ disabled: day >= today }}
             style={[styles.dateBtn, day >= today && styles.dim]}>
-            <Feather name="chevron-right" size={22} color={colors.ink} />
+            <Feather {...decorative} name="chevron-right" size={22} color={colors.ink} />
           </Pressable>
         </View>
         {fieldErrors.spentAt ? <Text style={styles.error}>{fieldErrors.spentAt}</Text> : null}

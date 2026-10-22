@@ -4,6 +4,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { VerdictLevel } from '@/lib/types';
 import { colors, spacing } from '@/theme';
 
+import { decorative } from './a11y';
+
 type FeatherName = keyof typeof Feather.glyphMap;
 
 export const verdictMeta: Record<VerdictLevel, { label: string; icon: FeatherName; text: string; bg: string; bar: string }> = {
@@ -18,7 +20,7 @@ export function VerdictBadge({ level, size = 'md' }: { level: VerdictLevel; size
   const small = size === 'sm';
   return (
     <View style={[styles.badge, { backgroundColor: m.bg }, small && styles.small]}>
-      <Feather name={m.icon} size={small ? 12 : 14} color={m.text} />
+      <Feather {...decorative} name={m.icon} size={small ? 12 : 14} color={m.text} />
       <Text style={[styles.label, { color: m.text }, small && styles.smallLabel]}>{m.label}</Text>
     </View>
   );

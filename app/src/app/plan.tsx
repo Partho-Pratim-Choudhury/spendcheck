@@ -4,6 +4,7 @@ import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, T
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { decorative } from '@/components/a11y';
 import { Card, CardTitle } from '@/components/Card';
 import { GoalSheet } from '@/components/GoalSheet';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -13,9 +14,11 @@ import { ErrorState, LoadingState, errorMessage } from '@/components/States';
 import { TextField } from '@/components/TextField';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { daysBetween, periodLabel, shortDate } from '@/lib/dates';
+import { daysBetween, ordinal, periodLabel, shortDate } from '@/lib/dates';
 import { formatINR, paiseToInput, parseRupees } from '@/lib/money';
+import { rolloverConfirmText } from '@/lib/rollover';
 import {
+  fetchRolloverPreview,
   useCategories,
   useCreateCategory,
   useCurrentPlan,
@@ -70,7 +73,7 @@ export default function PlanScreen() {
             <Text style={styles.serverUrl} numberOfLines={1} selectable>
               Server: {serverUrl ?? 'not set'}
             </Text>
-            <Pressable onPress={() => void changeServer()} hitSlop={8} accessibilityRole="button">
+            <Pressable onPress={() => void changeServer()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Change server">
               <Text style={styles.changeServer}>Change server</Text>
             </Pressable>
           </View>
@@ -91,6 +94,8 @@ function initialLimits(plan: Plan | null): LimitMap {
 function PlanForm({ plan, categories }: { plan: Plan | null; categories: Category[] }) {
   const save = useSavePlan();
   const rollover = useRollover();
+  const { user } = useAuth();
+  const [previewing, setPreviewing] = useState(false);
   const [income, setIncome] = useState(plan ? paiseToInput(plan.incomePaise, true) : '');
   const [savings, setSavings] = useState(plan ? paiseToInput(plan.savingsTargetPaise, true) : '');
   const [limits, setLimits] = useState<LimitMap>(() => initialLimits(plan));
@@ -158,10 +163,14 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
     save.mutate(body, { onSuccess: () => setSaved(true) });
   };
 
-  const confirmRollover = () => {
+  const confirmRollover = async () => {
+    if (previewing) return;
+    setPreviewing(true);
+    const preview = await fetchRolloverPreview().catch(() => null);
+    setPreviewing(false);
     Alert.alert(
       'Start a new month today?',
-      'This closes the current period and starts a new one from today, copying your income, savings and limits.',
+      rolloverConfirmText(preview, user?.salaryDay),
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -196,8 +205,8 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
           <PrimaryButton
             label="Salary came today — start new month"
             variant="secondary"
-            onPress={confirmRollover}
-            loading={rollover.isPending}
+            onPress={() => void confirmRollover()}
+            loading={rollover.isPending || previewing}
           />
         ) : null}
       </Card>
@@ -214,8 +223,12 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
             error={localErrors[`cat${c.id}`] ?? limitError(c.id)}
           />
         ))}
-        <Pressable onPress={() => setAddingFixed(true)} accessibilityRole="button" style={styles.addRow}>
-          <Feather name="plus" size={18} color={colors.primary} />
+        <Pressable
+          onPress={() => setAddingFixed(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Add fixed cost"
+          style={styles.addRow}>
+          <Feather {...decorative} name="plus" size={18} color={colors.primary} />
           <Text style={styles.link}>Add fixed cost</Text>
         </Pressable>
       </Card>
@@ -248,7 +261,7 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
       <Card>
         <CardTitle>Category limits</CardTitle>
         <View style={[styles.allocPill, { backgroundColor: allocTone.bg }]}>
-          <Feather
+          <Feather {...decorative}
             name={allocated === discretionary ? 'check-circle' : allocated < discretionary ? 'alert-triangle' : 'x-octagon'}
             size={14}
             color={allocTone.text}
@@ -348,7 +361,7 @@ function SalaryDayRow() {
           <Text style={styles.caption}>Salary day</Text>
           <Text style={styles.salaryValue}>{current ? `${ordinal(current)} of every month` : 'Not set'}</Text>
         </View>
-        <Feather name="chevron-right" size={20} color={colors.muted} />
+        <Feather {...decorative} name="chevron-right" size={20} color={colors.muted} />
       </Pressable>
       <Sheet visible={open} title="Salary day" onClose={() => setOpen(false)}>
         <Text style={styles.help}>Your month runs from salary day to the day before the next one. Affects future periods.</Text>
@@ -382,11 +395,6 @@ function SalaryDayRow() {
   );
 }
 
-function ordinal(n: number): string {
-  const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
-  return `${n}${s}`;
-}
-
 function GoalsCard() {
   const goals = useGoals();
   const [editing, setEditing] = useState<Goal | 'new' | null>(null);
@@ -415,8 +423,8 @@ function GoalsCard() {
           </Text>
         </Pressable>
       ))}
-      <Pressable onPress={() => setEditing('new')} accessibilityRole="button" style={styles.addRow}>
-        <Feather name="plus" size={18} color={colors.primary} />
+      <Pressable onPress={() => setEditing('new')} accessibilityRole="button" accessibilityLabel="Add goal" style={styles.addRow}>
+        <Feather {...decorative} name="plus" size={18} color={colors.primary} />
         <Text style={styles.link}>Add goal</Text>
       </Pressable>
       <GoalSheet goal={editing} onClose={() => setEditing(null)} />

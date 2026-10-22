@@ -4,6 +4,7 @@ import { Tabs } from 'expo-router/js-tabs';
 import { type ColorValue, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { decorative } from '@/components/a11y';
 import { colors, spacing, tabBar } from '@/theme';
 
 type FeatherName = keyof typeof Feather.glyphMap;
@@ -59,7 +60,7 @@ export default function TabsLayout() {
               accessibilityLabel="Open monthly plan"
               hitSlop={8}
               style={({ pressed }) => [styles.headerBtn, pressed && styles.pressed]}>
-              <Feather name="sliders" size={22} color={colors.ink} />
+              <Feather {...decorative} name="sliders" size={22} color={colors.ink} />
             </Pressable>
           ),
         }}

@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { ApiError } from '@/lib/api';
 import { colors, radii, spacing } from '@/theme';
 
+import { decorative } from './a11y';
 import { Card } from './Card';
 import { PrimaryButton } from './PrimaryButton';
 
@@ -26,7 +27,7 @@ export function ErrorState({ error, onRetry, title = 'Couldn’t load this' }: {
   return (
     <View style={styles.error}>
       <View style={styles.row}>
-        <Feather name="alert-circle" size={18} color={colors.verdict.red.text} />
+        <Feather {...decorative} name="alert-circle" size={18} color={colors.verdict.red.text} />
         <Text style={styles.errorTitle}>{title}</Text>
       </View>
       <Text style={styles.errorText}>{errorMessage(error)}</Text>
@@ -47,7 +48,7 @@ export function EmptyState({ icon = 'inbox', title, body, actionLabel, onAction 
   return (
     <Card style={styles.empty}>
       <View style={styles.emptyIcon}>
-        <Feather name={icon} size={22} color={colors.primary} />
+        <Feather {...decorative} name={icon} size={22} color={colors.primary} />
       </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       {body ? <Text style={styles.emptyBody}>{body}</Text> : null}

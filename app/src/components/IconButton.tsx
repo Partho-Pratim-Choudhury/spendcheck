@@ -3,6 +3,8 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { colors } from '@/theme';
 
+import { decorative } from './a11y';
+
 type FeatherName = keyof typeof Feather.glyphMap;
 
 export function IconButton({
@@ -29,7 +31,7 @@ export function IconButton({
       accessibilityState={{ disabled: !!disabled }}
       hitSlop={4}
       style={({ pressed }) => [styles.btn, (pressed || disabled) && styles.dim]}>
-      <Feather name={name} size={size} color={color} />
+      <Feather {...decorative} name={name} size={size} color={color} />
     </Pressable>
   );
 }

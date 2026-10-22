@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { decorative } from '@/components/a11y';
 import { Card, CardTitle } from '@/components/Card';
 import { BurnChart } from '@/components/charts/BurnChart';
 import { MoneyText } from '@/components/MoneyText';
@@ -116,7 +117,7 @@ function MonthCard({ d }: { d: Dashboard }) {
       />
       {m.savingsAtRiskPaise > 0 ? (
         <View style={styles.warnRow} accessibilityRole="alert">
-          <Feather name="alert-triangle" size={16} color={colors.verdict.amber.text} />
+          <Feather {...decorative} name="alert-triangle" size={16} color={colors.verdict.amber.text} />
           <Text style={styles.warnText}>
             At this pace: {formatINR(m.projectedPaise)} · {formatINR(m.savingsAtRiskPaise, 'up')} from savings
           </Text>
@@ -131,7 +132,11 @@ function CategoriesCard({ categories }: { categories: DashboardCategory[] }) {
     <Card>
       <CardTitle
         right={
-          <Pressable onPress={() => router.push('/transactions')} accessibilityRole="link" hitSlop={12}>
+          <Pressable
+            onPress={() => router.push('/transactions')}
+            accessibilityRole="link"
+            accessibilityLabel="See spends"
+            hitSlop={12}>
             <Text style={styles.link}>See spends</Text>
           </Pressable>
         }>

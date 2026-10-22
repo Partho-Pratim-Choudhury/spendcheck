@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@/theme';
 
+import { decorative } from './a11y';
+
 interface Props {
   visible: boolean;
   title: string;
@@ -30,7 +32,7 @@ export function Sheet({ visible, title, onClose, children }: Props) {
               accessibilityLabel="Close"
               hitSlop={8}
               style={styles.close}>
-              <Feather name="x" size={22} color={colors.ink} />
+              <Feather {...decorative} name="x" size={22} color={colors.ink} />
             </Pressable>
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>

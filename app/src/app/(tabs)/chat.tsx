@@ -27,7 +27,7 @@ import { UndoCard } from '@/components/chat/UndoCard';
 import { VerdictCard } from '@/components/chat/VerdictCard';
 import { errorMessage } from '@/components/States';
 import { ApiError, isNetworkError, serverDetail } from '@/lib/api';
-import { addDays, toYmd } from '@/lib/dates';
+import { deferReminderDate, toYmd } from '@/lib/dates';
 import { deleteLocalFile } from '@/lib/files';
 import { DEFER_REMINDER, scheduleDeferReminder } from '@/lib/notifications';
 import {
@@ -173,8 +173,9 @@ export default function ChatScreen() {
             patch(m.id, (x) => settleVerdict(x, { decision: 'SKIPPED' }));
           } else if (action === 'defer') {
             await decide({ checkId: v.checkId, body: { decision: 'DEFERRED' } });
-            const remindOn = addDays(toYmd(new Date()), DEFER_DAYS);
-            const reminded = await scheduleDeferReminder(DEFER_REMINDER.title, DEFER_REMINDER.body, DEFER_DAYS);
+            const remindAt = deferReminderDate(new Date(), DEFER_DAYS);
+            const remindOn = toYmd(remindAt);
+            const reminded = await scheduleDeferReminder(DEFER_REMINDER.title, DEFER_REMINDER.body, remindAt);
             patch(m.id, (x) => settleVerdict(x, { decision: 'DEFERRED', reminded, remindOn }));
           } else {
             const d = m.draft;

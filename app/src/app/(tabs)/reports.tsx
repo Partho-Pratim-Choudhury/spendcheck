@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { decorative } from '@/components/a11y';
 import { Card, CardTitle } from '@/components/Card';
 import { Donut, donutA11y } from '@/components/charts/Donut';
 import { TrendBars } from '@/components/charts/TrendBars';
@@ -179,7 +180,7 @@ function WhereItWent({ r }: { r: MonthlyReport }) {
               <Text style={styles.legendName}>{c.name}</Text>
               {over ? (
                 <View style={styles.overRow}>
-                  <Feather name="alert-triangle" size={12} color={colors.verdict.red.text} />
+                  <Feather {...decorative} name="alert-triangle" size={12} color={colors.verdict.red.text} />
                   <Text style={styles.overText}>
                     {formatINR(c.spentPaise - c.limitPaise, 'up')} over {formatINR(c.limitPaise)} limit
                   </Text>
@@ -248,7 +249,7 @@ function TopWants({ r }: { r: MonthlyReport }) {
       ))}
       {insight ? (
         <View style={styles.insight}>
-          <Feather name="calendar" size={16} color={colors.primary} />
+          <Feather {...decorative} name="calendar" size={16} color={colors.primary} />
           <Text style={styles.insightText}>
             Most wants land on <Text style={styles.bold}>{insight.weekday}</Text> — {insight.sharePct}% (
             {formatINR(insight.paise)}).

@@ -21,6 +21,7 @@ import com.parthopratim.spendcheck.plan.PlanDtos.LimitResponse;
 import com.parthopratim.spendcheck.plan.PlanDtos.PlanResponse;
 import com.parthopratim.spendcheck.plan.PlanDtos.PlanSummary;
 import com.parthopratim.spendcheck.plan.PlanDtos.PutPlanRequest;
+import com.parthopratim.spendcheck.plan.PlanDtos.RolloverPreview;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -191,10 +192,10 @@ public class PlanService {
         BudgetPlan source = active != null ? active
                 : plans.findFirstByUserIdOrderByPeriodStartDescIdDesc(userId)
                         .orElseThrow(() -> new ConflictException("No plan to roll over; set up a plan first."));
-        Period period = PeriodCalculator.rolloverPeriod(today, user.getSalaryDay());
+        Period period = rolloverTarget(active, today, user.getSalaryDay());
 
         BudgetPlan result;
-        if (active != null && !active.getPeriodStart().isBefore(today.minusDays(1))) {
+        if (keepsActive(active, today)) {
             active.setPeriodEnd(period.end());
             result = active;
         } else {
@@ -212,6 +213,21 @@ public class PlanService {
         return toResponse(result);
     }
 
+    /**
+     * The period {@link #rollover} would leave active if called now, without changing it (a stale plan is still
+     * rolled forward first, as every read of the current plan does). 409 when the user has no plan at all.
+     */
+    @Transactional
+    public RolloverPreview rolloverPreview(long userId) {
+        BudgetPlan active = activeUpToDate(userId).orElse(null);
+        if (active == null && plans.findFirstByUserIdOrderByPeriodStartDescIdDesc(userId).isEmpty()) {
+            throw new ConflictException("No plan to roll over; set up a plan first.");
+        }
+        User user = users.findById(userId).orElseThrow(() -> new NotFoundException("User not found."));
+        Period period = rolloverTarget(active, userTime.today(user), user.getSalaryDay());
+        return new RolloverPreview(period.start(), period.end(), PeriodCalculator.daysTotal(period));
+    }
+
     @Transactional
     public UserResponse setSalaryDay(long userId, int salaryDay) {
         User user = lock(userId);
@@ -221,6 +237,20 @@ public class PlanService {
     }
 
     // ---------- internals ----------
+
+    /**
+     * Whether a rollover today keeps the active plan (only extending its end): one that started today or
+     * yesterday can't be cut back, since a plan must span at least two days.
+     */
+    private static boolean keepsActive(BudgetPlan active, LocalDate today) {
+        return active != null && !active.getPeriodStart().isBefore(today.minusDays(1));
+    }
+
+    /** The period that is active after a rollover today; shared by {@link #rollover} and its preview. */
+    private static Period rolloverTarget(BudgetPlan active, LocalDate today, int salaryDay) {
+        Period period = PeriodCalculator.rolloverPeriod(today, salaryDay);
+        return keepsActive(active, today) ? new Period(active.getPeriodStart(), period.end()) : period;
+    }
 
     private User lock(long userId) {
         return users.lockById(userId).orElseThrow(() -> new NotFoundException("User not found."));

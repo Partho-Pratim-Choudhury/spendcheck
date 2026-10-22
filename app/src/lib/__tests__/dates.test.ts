@@ -4,6 +4,7 @@ import {
   addDays,
   dayHeaderLabel,
   daysBetween,
+  deferReminderDate,
   formatTime,
   groupByDay,
   monthName,
@@ -54,5 +55,21 @@ describe('dates', () => {
     expect(toYmd(moved)).toBe('2026-10-20');
     expect(moved.getHours()).toBe(14);
     expect(moved.getMinutes()).toBe(30);
+  });
+
+  describe('deferReminderDate', () => {
+    it('is 3 calendar days later at 10:00 local, whatever the hour of deferring', () => {
+      for (const [h, min] of [[0, 42], [9, 59], [10, 0], [23, 59]]) {
+        const at = deferReminderDate(new Date(2026, 9, 23, h, min));
+        expect([at.getFullYear(), at.getMonth(), at.getDate(), at.getHours(), at.getMinutes(), at.getSeconds()])
+          .toEqual([2026, 9, 26, 10, 0, 0]);
+      }
+    });
+
+    it('crosses month and year ends and honours a custom day count', () => {
+      expect(toYmd(deferReminderDate(new Date(2026, 9, 30, 0, 42)))).toBe('2026-11-02');
+      expect(toYmd(deferReminderDate(new Date(2026, 11, 30, 18, 0)))).toBe('2027-01-02');
+      expect(toYmd(deferReminderDate(new Date(2026, 9, 23, 12, 0), 1))).toBe('2026-10-24');
+    });
   });
 });

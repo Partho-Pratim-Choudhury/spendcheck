@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { decorative } from '@/components/a11y';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProgressBar } from '@/components/ProgressBar';
 import { verdictMeta } from '@/components/VerdictBadge';
@@ -54,7 +55,7 @@ function Outcome({ icon, text }: { icon: keyof typeof Feather.glyphMap; text: st
   return (
     <View style={styles.wrap}>
       <View style={styles.outcome}>
-        <Feather name={icon} size={14} color={colors.verdict.green.text} />
+        <Feather {...decorative} name={icon} size={14} color={colors.verdict.green.text} />
         <Text style={styles.outcomeText}>{text}</Text>
       </View>
     </View>
@@ -73,7 +74,7 @@ function Pending({ verdict: v, busy, error, onDecide }: Props) {
         <View style={[styles.card, styles.compact]}>
           <View style={styles.compactTop}>
             <View style={[styles.pill, { backgroundColor: m.bg }]}>
-              <Feather name={m.icon} size={14} color={m.text} />
+              <Feather {...decorative} name={m.icon} size={14} color={m.text} />
               <Text style={[styles.pillText, { color: m.text }]}>{m.label}</Text>
             </View>
             <Text style={[styles.headCat, typography.amount]} numberOfLines={1}>
@@ -92,7 +93,7 @@ function Pending({ verdict: v, busy, error, onDecide }: Props) {
     <View style={styles.wrap}>
       <View style={styles.card}>
         <View style={[styles.band, { backgroundColor: m.bg }]} accessibilityRole="header">
-          <Feather name={m.icon} size={18} color={m.text} />
+          <Feather {...decorative} name={m.icon} size={18} color={m.text} />
           <Text style={[styles.bandLabel, { color: m.text }]}>{m.label}</Text>
           <Text style={[styles.bandCat, { color: m.text }, typography.amount]} numberOfLines={1}>
             {v.categoryName} · {formatINR(v.amountPaise)}

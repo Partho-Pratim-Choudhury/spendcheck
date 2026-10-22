@@ -4,6 +4,7 @@ import com.parthopratim.spendcheck.auth.CurrentUser;
 import com.parthopratim.spendcheck.plan.PlanDtos.PlanResponse;
 import com.parthopratim.spendcheck.plan.PlanDtos.PlanSummary;
 import com.parthopratim.spendcheck.plan.PlanDtos.PutPlanRequest;
+import com.parthopratim.spendcheck.plan.PlanDtos.RolloverPreview;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,11 @@ public class PlanController {
     @ResponseStatus(HttpStatus.CREATED)
     public PlanResponse rollover() {
         return service.rollover(currentUser.id());
+    }
+
+    @GetMapping("/rollover/preview")
+    public RolloverPreview rolloverPreview() {
+        return service.rolloverPreview(currentUser.id());
     }
 
     @GetMapping
