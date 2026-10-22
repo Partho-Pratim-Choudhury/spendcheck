@@ -131,6 +131,21 @@ public class TransactionService {
         }
     }
 
+    /**
+     * Chat "undo": cancels the user's most recently created CONFIRMED transaction if it was created after
+     * {@code since}. Returns what was cancelled.
+     */
+    @Transactional
+    public Optional<TransactionResponse> undoLatest(long userId, Instant since) {
+        return transactions.findFirstByUserIdAndStatusAndCreatedAtAfterOrderByCreatedAtDesc(userId,
+                        TransactionStatus.CONFIRMED, since)
+                .map(t -> {
+                    t.setStatus(TransactionStatus.CANCELLED);
+                    transactions.flush();
+                    return TransactionResponse.from(t);
+                });
+    }
+
     @Transactional(readOnly = true)
     public List<TransactionResponse> list(long userId, LocalDate from, LocalDate to, Long categoryId,
                                           NeedOrWant needOrWant) {

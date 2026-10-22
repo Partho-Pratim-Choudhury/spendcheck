@@ -23,6 +23,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     @EntityGraph(attributePaths = "category")
     List<Transaction> findAll(Specification<Transaction> spec, Sort sort);
 
+    /** The user's most recently created transaction in {@code status} created after {@code since}. */
+    @EntityGraph(attributePaths = "category")
+    Optional<Transaction> findFirstByUserIdAndStatusAndCreatedAtAfterOrderByCreatedAtDesc(
+            Long userId, TransactionStatus status, Instant since);
+
     /** Points the user's transactions with {@code from <= spentAt < to} at a plan. */
     @Modifying(flushAutomatically = true)
     @Query("update Transaction t set t.planId = :planId "

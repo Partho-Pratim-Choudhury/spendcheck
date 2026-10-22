@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["intent", "amountRupees", "category", "merchant", "note", "date", "needOrWant", "queryType",
+               "queryCategory", "confidence"],
+  "properties": {
+    "intent": {"type": "string", "enum": ["LOG_EXPENSE", "PRE_CHECK", "QUERY", "UNDO", "OTHER"]},
+    "amountRupees": {"type": ["number", "null"], "description": "Amount in rupees as a plain number; null if not stated"},
+    "category": {"type": ["string", "null"], "description": "Exactly one of the user's category names, or null"},
+    "merchant": {"type": ["string", "null"], "description": "Shop/brand/app name, properly spelled; null if none"},
+    "note": {"type": ["string", "null"], "description": "Short description of what was bought; null if nothing beyond the merchant"},
+    "date": {"type": ["string", "null"], "description": "yyyy-MM-dd when the spend happened; null means today"},
+    "needOrWant": {"type": ["string", "null"], "enum": ["NEED", "WANT", null]},
+    "queryType": {"type": ["string", "null"], "enum": ["CATEGORY_LEFT", "TOTAL_SPENT", "SAFE_TODAY", "GOAL_STATUS", null]},
+    "queryCategory": {"type": ["string", "null"], "description": "Category name a CATEGORY_LEFT question is about"},
+    "confidence": {"type": "number", "description": "0..1, how sure you are of this reading"}
+  }
+}

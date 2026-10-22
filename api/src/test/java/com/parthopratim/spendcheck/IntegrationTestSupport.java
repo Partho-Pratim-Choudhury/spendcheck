@@ -44,7 +44,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import({TestcontainersConfig.class, IntegrationTestSupport.ClockOverride.class})
+@Import({TestcontainersConfig.class, IntegrationTestSupport.ClockOverride.class, ScriptedAi.class})
 public abstract class IntegrationTestSupport {
 
     protected static final ZoneId IST = ZoneId.of("Asia/Kolkata");
@@ -65,6 +65,8 @@ public abstract class IntegrationTestSupport {
     @Autowired protected CategoryRepository categories;
     @Autowired protected JwtService jwtService;
     @Autowired protected MutableClock clock;
+    @Autowired protected ScriptedAi.ScriptedExtractor extractor;
+    @Autowired protected ScriptedAi.ScriptedSpeechToText speechToText;
 
     protected record TestUser(User user, String token, Map<String, Long> cats) {
         public long id() {
@@ -83,6 +85,8 @@ public abstract class IntegrationTestSupport {
     @AfterEach
     void resetClock() {
         clock.reset();
+        extractor.reset();
+        speechToText.reset();
     }
 
     /** Sets "now" to noon IST on {@code date}. */

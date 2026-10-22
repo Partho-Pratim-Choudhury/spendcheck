@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /** Renders every error as RFC 7807 {@link ProblemDetail}. */
@@ -40,6 +41,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ProblemDetail integrity(DataIntegrityViolationException ex) {
         log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
         return problem(HttpStatus.CONFLICT, "Conflict", "The request conflicts with existing data.");
+    }
+
+    @ExceptionHandler(ServiceUnavailableException.class)
+    ProblemDetail unavailable(ServiceUnavailableException ex) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable", ex.getMessage());
+    }
+
+    @ExceptionHandler(BadGatewayException.class)
+    ProblemDetail badGateway(BadGatewayException ex) {
+        log.warn("Upstream failure: {}", ex.getCause() != null ? ex.getCause().toString() : ex.getMessage());
+        return problem(HttpStatus.BAD_GATEWAY, "Bad Gateway", ex.getMessage());
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -76,6 +88,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             r.getResolvableErrors().forEach(e -> errors.putIfAbsent(name, e.getDefaultMessage()));
         });
         return ResponseEntity.badRequest().body(validationProblem(errors));
+    }
+
+    /** Spring's default is 413; the API contract says 400 for an oversized upload. */
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex,
+                                                                          HttpHeaders headers,
+                                                                          HttpStatusCode status,
+                                                                          WebRequest request) {
+        return ResponseEntity.badRequest().body(problem(HttpStatus.BAD_REQUEST, "Bad Request",
+                "The upload is too large."));
     }
 
     @ExceptionHandler(Exception.class)

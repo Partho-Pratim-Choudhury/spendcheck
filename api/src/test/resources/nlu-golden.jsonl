@@ -1,0 +1,147 @@
+{"today": "2026-10-22", "text": "swiggy 450", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "450 swiggy", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "swiggy 450 dinner", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "spent 450 on swiggy", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "paid 230 for zomato lunch", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 23000, "category": "Food", "merchant": "Zomato", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "chai point 190", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 19000, "category": "Food", "merchant": "Chai Point", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "coffee 120", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 12000, "category": "Food", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "starbucks 380", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 38000, "category": "Food", "merchant": "Starbucks", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "dinner with friends 1200", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 120000, "category": "Food", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "lunch 150", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 15000, "category": "Food", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "dmart 2340", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 234000, "category": "Groceries", "merchant": "DMart", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "groceries from blinkit 860", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 86000, "category": "Groceries", "merchant": "Blinkit", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "zepto 412", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 41200, "category": "Groceries", "merchant": "Zepto", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "bigbasket order 1575", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 157500, "category": "Groceries", "merchant": "BigBasket", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "vegetables 240", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 24000, "category": "Groceries", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "milk and bread 95", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 9500, "category": "Groceries", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "myntra 1899", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 189900, "category": "Shopping", "merchant": "Myntra", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "bought shoes for 3500", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 350000, "category": "Shopping", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "amazon 649", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 64900, "category": "Shopping", "merchant": "Amazon", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "flipkart headphones 1299", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 129900, "category": "Shopping", "merchant": "Flipkart", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "tshirt 799", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 79900, "category": "Shopping", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "uber 430", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 43000, "category": "Travel", "merchant": "Uber", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "uber to office 430", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 43000, "category": "Travel", "merchant": "Uber", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "ola 260", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 26000, "category": "Travel", "merchant": "Ola", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "rapido 85", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 8500, "category": "Travel", "merchant": "Rapido", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "metro card recharge 500", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 50000, "category": "Travel", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "auto 60", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 6000, "category": "Travel", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "petrol 1000", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 100000, "category": "Travel", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "electricity bill 900", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 90000, "category": "Bills", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "wifi bill 799", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 79900, "category": "Bills", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "mobile recharge 299", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 29900, "category": "Bills", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "gas cylinder 950", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 95000, "category": "Bills", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "pvr movie 760", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 76000, "category": "Fun", "merchant": "PVR", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "movie tickets 520", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 52000, "category": "Fun", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "netflix 649", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 64900, "category": "Fun", "merchant": "Netflix", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "bowling with team 900", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 90000, "category": "Fun", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "medicines 340", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 34000, "category": "Health", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "pharmacy 520", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 52000, "category": "Health", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "doctor consultation 800", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 80000, "category": "Health", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "gym fees 1500", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 150000, "category": "Health", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "rent 25000", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 2500000, "category": "Rent", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "paid rent 25000", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 2500000, "category": "Rent", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "emi 15000", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 1500000, "category": "EMI", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "sip 10000", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 1000000, "category": "SIP", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "haircut 300", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 30000, "category": "Misc", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "gift for mom 1500", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 150000, "category": "Misc", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "laundry 250", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 25000, "category": "Misc", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "swiggy four fifty", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "uber four thirty", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 43000, "category": "Travel", "merchant": "Uber", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "dinner twelve hundred", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 120000, "category": "Food", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "shoes thirty five hundred", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 350000, "category": "Shopping", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "rent twenty five thousand", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 2500000, "category": "Rent", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "groceries 1.2k", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 120000, "category": "Groceries", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "myntra 2k", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 200000, "category": "Shopping", "merchant": "Myntra", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "₹450 swiggy", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "rs 230 zomato", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 23000, "category": "Food", "merchant": "Zomato", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "Rs. 99 netflix", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 9900, "category": "Fun", "merchant": "Netflix", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "inr 500 petrol", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 50000, "category": "Travel", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "dmart 2,340", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 234000, "category": "Groceries", "merchant": "DMart", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "rent 25,000", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 2500000, "category": "Rent", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "ola 189.50", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 18950, "category": "Travel", "merchant": "Ola", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "spent a hundred on chai", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 10000, "category": "Food", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "one fifty for auto", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 15000, "category": "Travel", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "swiggy 450 rupees", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "paid five hundred for petrol", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 50000, "category": "Travel", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "aaj 300 ka petrol dalwaya", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 30000, "category": "Travel", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "swiggy pe 450 kharch kiye", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "zomato se khana mangaya 380", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 38000, "category": "Food", "merchant": "Zomato", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "sabzi 120", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 12000, "category": "Groceries", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "doodh 60", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 6000, "category": "Groceries", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "kiraya 25000 diya", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 2500000, "category": "Rent", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "auto wale ko 80 diye", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 8000, "category": "Travel", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "dawai 340", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 34000, "category": "Health", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "bijli ka bill 900", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 90000, "category": "Bills", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "chai samosa 50", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 5000, "category": "Food", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "myntra se kapde liye 1899", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 189900, "category": "Shopping", "merchant": "Myntra", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "dost ke saath dinner 1500", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 150000, "category": "Food", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "movie dekhi 600", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 60000, "category": "Fun", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "uber ka 430 laga", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 43000, "category": "Travel", "merchant": "Uber", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "recharge karwaya 299", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 29900, "category": "Bills", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "blinkit se saaman 650", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 65000, "category": "Groceries", "merchant": "Blinkit", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "gym ki fees 1500", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 150000, "category": "Health", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "bal katwaye 300", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 30000, "category": "Misc", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "yesterday swiggy 450", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-21"}}
+{"today": "2026-10-22", "text": "swiggy 450 yesterday", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-21"}}
+{"today": "2026-10-22", "text": "kal dmart 2340", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 234000, "category": "Groceries", "merchant": "DMart", "date": "2026-10-21"}}
+{"today": "2026-10-22", "text": "uber 430 on monday", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 43000, "category": "Travel", "merchant": "Uber", "date": "2026-10-19"}}
+{"today": "2026-10-22", "text": "last saturday movie 760", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 76000, "category": "Fun", "date": "2026-10-17"}}
+{"today": "2026-10-22", "text": "day before yesterday dinner 1200", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 120000, "category": "Food", "date": "2026-10-20"}}
+{"today": "2026-10-22", "text": "parso petrol 1000", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 100000, "category": "Travel", "date": "2026-10-20"}}
+{"today": "2026-10-22", "text": "20th oct electricity 900", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 90000, "category": "Bills", "date": "2026-10-20"}}
+{"today": "2026-10-22", "text": "this morning coffee 120", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 12000, "category": "Food", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "swigy 450", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "zommato 230", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 23000, "category": "Food", "merchant": "Zomato", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "SWIGGY 450", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "Dmart   2340  ", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 234000, "category": "Groceries", "merchant": "DMart", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "uber.. 430!!", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 43000, "category": "Travel", "merchant": "Uber", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "petrl 1000", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 100000, "category": "Travel", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "grocries 860", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 86000, "category": "Groceries", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "electricty 900", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 90000, "category": "Bills", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "spent 450 swiggy and it was not worth it", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "category": "Food", "merchant": "Swiggy", "date": "2026-10-22"}}
+{"today": "2026-10-22", "text": "dinner 1200 (want)", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 120000, "category": "Food", "date": "2026-10-22", "needOrWant": "WANT"}}
+{"today": "2026-10-22", "text": "groceries 860 need", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 86000, "category": "Groceries", "date": "2026-10-22", "needOrWant": "NEED"}}
+{"today": "2026-10-22", "text": "bought headphones 1299 - totally unnecessary", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 129900, "category": "Shopping", "date": "2026-10-22", "needOrWant": "WANT"}}
+{"today": "2026-10-22", "text": "can I buy shoes for 3500", "expected": {"intent": "PRE_CHECK", "amountPaise": 350000, "category": "Shopping"}}
+{"today": "2026-10-22", "text": "should I buy shoes for 3500", "expected": {"intent": "PRE_CHECK", "amountPaise": 350000, "category": "Shopping"}}
+{"today": "2026-10-22", "text": "can I get pizza for 300?", "expected": {"intent": "PRE_CHECK", "amountPaise": 30000, "category": "Food"}}
+{"today": "2026-10-22", "text": "is it ok to spend 2000 on a dinner", "expected": {"intent": "PRE_CHECK", "amountPaise": 200000, "category": "Food"}}
+{"today": "2026-10-22", "text": "thinking of buying headphones 1299", "expected": {"intent": "PRE_CHECK", "amountPaise": 129900, "category": "Shopping"}}
+{"today": "2026-10-22", "text": "can I afford a 760 movie", "expected": {"intent": "PRE_CHECK", "amountPaise": 76000, "category": "Fun"}}
+{"today": "2026-10-22", "text": "should I order swiggy 450", "expected": {"intent": "PRE_CHECK", "amountPaise": 45000, "category": "Food"}}
+{"today": "2026-10-22", "text": "planning to buy a jacket for 2500", "expected": {"intent": "PRE_CHECK", "amountPaise": 250000, "category": "Shopping"}}
+{"today": "2026-10-22", "text": "kya main 3500 ke shoes le sakta hoon", "expected": {"intent": "PRE_CHECK", "amountPaise": 350000, "category": "Shopping"}}
+{"today": "2026-10-22", "text": "1500 ka dinner kar loon?", "expected": {"intent": "PRE_CHECK", "amountPaise": 150000, "category": "Food"}}
+{"today": "2026-10-22", "text": "want to buy airpods case 1200, ok?", "expected": {"intent": "PRE_CHECK", "amountPaise": 120000, "category": "Shopping"}}
+{"today": "2026-10-22", "text": "can i take an uber for 600", "expected": {"intent": "PRE_CHECK", "amountPaise": 60000, "category": "Travel"}}
+{"today": "2026-10-22", "text": "is 900 for bowling fine", "expected": {"intent": "PRE_CHECK", "amountPaise": 90000, "category": "Fun"}}
+{"today": "2026-10-22", "text": "should I spend 5000 on a weekend trip", "expected": {"intent": "PRE_CHECK", "amountPaise": 500000, "category": "Fun"}}
+{"today": "2026-10-22", "text": "can I buy groceries for 1500", "expected": {"intent": "PRE_CHECK", "amountPaise": 150000, "category": "Groceries"}}
+{"today": "2026-10-22", "text": "afford netflix 649?", "expected": {"intent": "PRE_CHECK", "amountPaise": 64900, "category": "Fun"}}
+{"today": "2026-10-22", "text": "how much left for food?", "expected": {"intent": "QUERY", "queryType": "CATEGORY_LEFT", "category": "Food"}}
+{"today": "2026-10-22", "text": "how much is left in shopping", "expected": {"intent": "QUERY", "queryType": "CATEGORY_LEFT", "category": "Shopping"}}
+{"today": "2026-10-22", "text": "food budget left", "expected": {"intent": "QUERY", "queryType": "CATEGORY_LEFT", "category": "Food"}}
+{"today": "2026-10-22", "text": "kitna bacha hai travel mein", "expected": {"intent": "QUERY", "queryType": "CATEGORY_LEFT", "category": "Travel"}}
+{"today": "2026-10-22", "text": "how much have I spent this month", "expected": {"intent": "QUERY", "queryType": "TOTAL_SPENT"}}
+{"today": "2026-10-22", "text": "total spent so far", "expected": {"intent": "QUERY", "queryType": "TOTAL_SPENT"}}
+{"today": "2026-10-22", "text": "is mahine kitna kharch hua", "expected": {"intent": "QUERY", "queryType": "TOTAL_SPENT"}}
+{"today": "2026-10-22", "text": "how much can I spend today", "expected": {"intent": "QUERY", "queryType": "SAFE_TODAY"}}
+{"today": "2026-10-22", "text": "what's my safe spend today", "expected": {"intent": "QUERY", "queryType": "SAFE_TODAY"}}
+{"today": "2026-10-22", "text": "aaj kitna kharch kar sakta hoon", "expected": {"intent": "QUERY", "queryType": "SAFE_TODAY"}}
+{"today": "2026-10-22", "text": "how is my goa fund doing", "expected": {"intent": "QUERY", "queryType": "GOAL_STATUS"}}
+{"today": "2026-10-22", "text": "goal status", "expected": {"intent": "QUERY", "queryType": "GOAL_STATUS"}}
+{"today": "2026-10-22", "text": "am I on track for my savings goal", "expected": {"intent": "QUERY", "queryType": "GOAL_STATUS"}}
+{"today": "2026-10-22", "text": "how much left for groceries this month", "expected": {"intent": "QUERY", "queryType": "CATEGORY_LEFT", "category": "Groceries"}}
+{"today": "2026-10-22", "text": "undo", "expected": {"intent": "UNDO"}}
+{"today": "2026-10-22", "text": "undo last", "expected": {"intent": "UNDO"}}
+{"today": "2026-10-22", "text": "delete the last one", "expected": {"intent": "UNDO"}}
+{"today": "2026-10-22", "text": "oops remove that", "expected": {"intent": "UNDO"}}
+{"today": "2026-10-22", "text": "hi", "expected": {"intent": "OTHER"}}
+{"today": "2026-10-22", "text": "thanks", "expected": {"intent": "OTHER"}}
+{"today": "2026-10-22", "text": "what can you do?", "expected": {"intent": "OTHER"}}
+{"today": "2026-10-22", "text": "tell me a joke", "expected": {"intent": "OTHER"}}
+{"today": "2026-10-22", "text": "asdfgh", "expected": {"intent": "OTHER"}}
+{"today": "2026-10-22", "text": "swiggy", "expected": {"intent": "LOG_EXPENSE", "amountPaise": null, "followUp": true}}
+{"today": "2026-10-22", "text": "bought shoes", "expected": {"intent": "LOG_EXPENSE", "amountPaise": null, "followUp": true}}
+{"today": "2026-10-22", "text": "paid the electricity bill", "expected": {"intent": "LOG_EXPENSE", "amountPaise": null, "followUp": true}}
+{"today": "2026-10-22", "text": "450", "expected": {"intent": "LOG_EXPENSE", "amountPaise": 45000, "followUp": true}}

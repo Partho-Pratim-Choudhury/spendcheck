@@ -20,11 +20,19 @@ spring:
     enabled: true
   ai:
     openai:
-      # Spring AI is wired but unused in week 1; the app must boot without a real key.
+      # The app must boot without a real key; /inputs/* answer 503 until one is set.
       api-key: ${OPENAI_API_KEY:not-set}
+  servlet:
+    multipart:
+      # Voice notes are capped at 2 MB (InputController re-checks); a bigger request is rejected as 400.
+      max-file-size: 2MB
+      max-request-size: 3MB
 
 server:
   port: ${SERVER_PORT:8077}
+  tomcat:
+    # Read (and discard) oversized uploads so the client gets the 400 instead of a reset connection.
+    max-swallow-size: 10MB
   error:
     include-stacktrace: never
 
@@ -52,6 +60,10 @@ spendcheck:
     name: ${APP_USER_NAME:Partho}
     salary-day: ${APP_SALARY_DAY:7}
   llm:
-    model: ${LLM_MODEL:}
+    model: ${LLM_MODEL:gpt-5.4-mini}
+    confidence-threshold: ${LLM_CONFIDENCE_THRESHOLD:0.7}
+    reasoning-effort: ${LLM_REASONING_EFFORT:low}
+    timeout: 20s
   stt:
-    model: ${STT_MODEL:}
+    model: ${STT_MODEL:gpt-4o-mini-transcribe}
+    timeout: 20s

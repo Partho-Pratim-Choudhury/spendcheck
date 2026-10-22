@@ -47,7 +47,21 @@ public record AppProperties(
         }
     }
 
-    public record Llm(String model) {}
+    /**
+     * @param reasoningEffort sent to reasoning models (gpt-5*, o*) only; they reject {@code temperature}, everything
+     *                        else gets temperature 0
+     */
+    public record Llm(@DefaultValue("gpt-5.4-mini") String model,
+                      @DefaultValue("0.7") double confidenceThreshold,
+                      @DefaultValue("20s") Duration timeout,
+                      @DefaultValue("low") String reasoningEffort) {
+        public Llm {
+            if (confidenceThreshold < 0 || confidenceThreshold > 1) {
+                throw new IllegalStateException("spendcheck.llm.confidence-threshold must be between 0 and 1.");
+            }
+        }
+    }
 
-    public record Stt(String model) {}
+    public record Stt(@DefaultValue("gpt-4o-mini-transcribe") String model,
+                      @DefaultValue("20s") Duration timeout) {}
 }

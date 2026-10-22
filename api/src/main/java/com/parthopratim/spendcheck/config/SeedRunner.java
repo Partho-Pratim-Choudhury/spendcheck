@@ -22,9 +22,10 @@ public class SeedRunner implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SeedRunner.class);
 
-    private record Seed(String name, CategoryKind kind, List<String> aliases) {}
+    /** A default category; also the category set the NLU eval runs against. */
+    public record Seed(String name, CategoryKind kind, List<String> aliases) {}
 
-    private static final List<Seed> DEFAULT_CATEGORIES = List.of(
+    public static final List<Seed> DEFAULT_CATEGORIES = List.of(
             new Seed("Food", CategoryKind.WANT, List.of("swiggy", "zomato", "dinner", "lunch", "cafe", "chai")),
             new Seed("Groceries", CategoryKind.NEED, List.of("dmart", "blinkit", "zepto", "bigbasket", "grocery")),
             new Seed("Shopping", CategoryKind.WANT, List.of("myntra", "amazon", "flipkart", "clothes", "shoes")),
