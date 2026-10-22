@@ -28,6 +28,10 @@ export class ApiError extends Error {
 /** status 0 = never reached the server (config / network / timeout). */
 export const isNetworkError = (e: unknown): e is ApiError => e instanceof ApiError && e.status === 0;
 
+/** Worth sending again unchanged: network/timeout, 408, 429 or 5xx. Other 4xx and unknown errors are final. */
+export const isRetryableError = (e: unknown): boolean =>
+  e instanceof ApiError && (e.status === 0 || e.status === 408 || e.status === 429 || e.status >= 500);
+
 // --- auth wiring (set by AuthProvider) -------------------------------------
 
 let authToken: string | null = null;

@@ -9,6 +9,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { Alert, type GestureResponderEvent, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { deleteLocalFile } from '@/lib/files';
 import { colors, spacing } from '@/theme';
 
 const MIN_MS = 700;
@@ -17,7 +18,8 @@ const CANCEL_DX = -80;
 
 interface Props {
   onSendText: (text: string) => void;
-  onSendVoice: (uri: string) => void;
+  /** Takes ownership of the recording; false = not accepted (already deleted), e.g. still busy. */
+  onSendVoice: (uri: string) => boolean;
   disabled?: boolean;
 }
 
@@ -78,6 +80,9 @@ export function Composer({ onSendText, onSendVoice, disabled }: Props) {
     const p = started.current;
     if (!p) return;
     finishing.current = true;
+    // Owned here until handed to onSendVoice; deleted if anything fails before that.
+    let uri: string | null = null;
+    let handedOff = false;
     try {
       const ok = await p;
       started.current = null;
@@ -86,16 +91,31 @@ export function Composer({ onSendText, onSendVoice, disabled }: Props) {
       setCancelArmed(false);
       if (!ok) return;
       const duration = Date.now() - startedAt.current;
-      await recorder.stop();
-      const uri = recorder.uri;
-      if (mode === 'cancel' || armed.current) return;
+      try {
+        await recorder.stop();
+      } finally {
+        uri = recorder.uri;
+      }
+      // Cancelled or too short: the recording is never uploaded, so drop it now.
+      if (mode === 'cancel' || armed.current) {
+        deleteLocalFile(uri);
+        return;
+      }
       if (duration < MIN_MS) {
+        deleteLocalFile(uri);
         setHint('Hold the mic to record');
         setTimeout(() => setHint(null), 2000);
         return;
       }
-      if (uri) onSendVoice(uri);
+      if (uri) {
+        handedOff = true;
+        if (!onSendVoice(uri)) {
+          setHint('Wait for the last message to finish');
+          setTimeout(() => setHint(null), 2500);
+        }
+      }
     } catch {
+      if (!handedOff) deleteLocalFile(uri);
       setHint('Couldn’t record — try again');
       setTimeout(() => setHint(null), 2500);
     } finally {

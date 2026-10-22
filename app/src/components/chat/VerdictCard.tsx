@@ -9,7 +9,7 @@ import { errorMessage } from '@/components/States';
 import { verdictMeta } from '@/components/VerdictBadge';
 import { addDays, friendlyDate, toYmd } from '@/lib/dates';
 import { formatINR } from '@/lib/money';
-import { scheduleDeferReminder } from '@/lib/notifications';
+import { DEFER_REMINDER, scheduleDeferReminder } from '@/lib/notifications';
 import { useCreateTransaction, useDecision } from '@/lib/queries';
 import type { Draft, Transaction, Verdict } from '@/lib/types';
 import { colors, radii, spacing, typography } from '@/theme';
@@ -44,10 +44,15 @@ export function VerdictCard(props: Props) {
   }
   if (outcome?.decision === 'DEFERRED') {
     const when = friendlyDate(outcome.remindOn);
+    const what = `${v.categoryName} · ${formatINR(v.amountPaise)}`;
     return (
       <Outcome
         icon="clock"
-        text={outcome.reminded ? `Okay — I’ll ask again on ${when}.` : `Parked until ${when}. Turn on notifications to get a reminder.`}
+        text={
+          outcome.reminded
+            ? `Okay — I’ll ask again about ${what} on ${when}.`
+            : `${what} parked until ${when}. Turn on notifications to get a reminder.`
+        }
       />
     );
   }
@@ -83,11 +88,7 @@ function Pending({ verdict: v, draft, rawInputId, source, onOutcome }: Props) {
       } else if (kind === 'defer') {
         await decide.mutateAsync({ checkId: v.checkId, body: { decision: 'DEFERRED' } });
         const remindOn = addDays(toYmd(new Date()), DEFER_DAYS);
-        const reminded = await scheduleDeferReminder(
-          'Still want it?',
-          `${v.categoryName} · ${formatINR(v.amountPaise)} — you asked to think it over.`,
-          DEFER_DAYS,
-        );
+        const reminded = await scheduleDeferReminder(DEFER_REMINDER.title, DEFER_REMINDER.body, DEFER_DAYS);
         onOutcome({ decision: 'DEFERRED', reminded, remindOn });
       } else {
         const tx: Transaction = await create.mutateAsync({

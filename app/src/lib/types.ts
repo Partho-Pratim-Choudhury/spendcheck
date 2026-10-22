@@ -160,6 +160,11 @@ export interface GoalInput {
   targetDate?: string | null;
 }
 
+/** PATCH /goals/{id} — partial; `clearTargetDate: true` removes the target date. */
+export interface PatchGoal extends Partial<GoalInput> {
+  clearTargetDate?: boolean;
+}
+
 // --- Dashboard ---------------------------------------------------------------
 
 export type CategoryStatus = 'OK' | 'WARN' | 'OVER';
@@ -249,6 +254,15 @@ export interface Draft {
   after: { categorySpentPaise: number; categoryLimitPaise: number };
 }
 
+export interface UndoCandidate {
+  transactionId: string;
+  amountPaise: number;
+  categoryName: string;
+  merchant: string | null;
+  /** ISO-8601 instant. */
+  spentAt: string;
+}
+
 export interface InputResult {
   rawInputId: number;
   intent: InputIntent;
@@ -256,6 +270,12 @@ export interface InputResult {
   draft: Draft | null;
   verdict: Verdict | null;
   answer: { text: string } | null;
+  /** UNDO: proposed only — the app confirms via DELETE /transactions/{id}. */
+  undoCandidate: UndoCandidate | null;
+  /**
+   * @deprecated null on current servers; use `undoCandidate`. An older server deleted the spend
+   * itself and returned its id here — the app treats that as already removed.
+   */
   undoneTransactionId: string | null;
   followUp: { question: string; missing: string[] } | null;
 }

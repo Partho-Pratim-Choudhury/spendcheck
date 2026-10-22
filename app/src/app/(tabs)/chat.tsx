@@ -6,10 +6,20 @@ import { BotBubble, CompactLine, DayDivider, ErrorBubble, UserBubble } from '@/c
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { Composer } from '@/components/chat/Composer';
 import { DraftCard } from '@/components/chat/DraftCard';
-import { type ChatMessage, type InputSource, nextId, type RetryPayload } from '@/components/chat/model';
+import {
+  type ChatMessage,
+  dropVoiceRetries,
+  hasPendingUndo,
+  type InputPayload,
+  type InputSource,
+  markTxRemoved,
+  nextId,
+} from '@/components/chat/model';
+import { UndoCard } from '@/components/chat/UndoCard';
 import { VerdictCard } from '@/components/chat/VerdictCard';
 import { ApiError, isNetworkError } from '@/lib/api';
-import { invalidateSpendData, sendTextInput, sendVoiceInput, useTodayTransactions } from '@/lib/queries';
+import { deleteLocalFile } from '@/lib/files';
+import { invalidateSpendData, sendTextInput, sendVoiceInput, useTodayTransactions, VoiceUploadError } from '@/lib/queries';
 import type { InputResult, Transaction } from '@/lib/types';
 import { colors, spacing } from '@/theme';
 
@@ -37,6 +47,19 @@ export default function ChatScreen() {
   // One input at a time: the ref closes the gap before `busy` re-renders (double taps).
   const inFlight = useRef(false);
   const seeded = useRef(false);
+  // Recordings kept on disk so their error bubble can Retry; deleted once superseded or on unmount.
+  const keptVoice = useRef(new Set<string>());
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    const kept = keptVoice.current;
+    return () => {
+      mounted.current = false;
+      for (const uri of kept) deleteLocalFile(uri);
+      kept.clear();
+    };
+  }, []);
 
   // Snapshot today's confirmed spends once per session; later confirms show as their own cards.
   useEffect(() => {
@@ -52,6 +75,25 @@ export default function ChatScreen() {
     [],
   );
 
+  /** After a confirmed Remove: strike the spend through wherever it shows in this chat. */
+  const markRemoved = useCallback((txId: string) => {
+    setSeed((s) => s?.map((t) => (t.id === txId ? { ...t, status: 'CANCELLED' } : t)) ?? s);
+    setMessages((prev) => markTxRemoved(prev, txId));
+  }, []);
+
+  /** Delete kept recordings (except `keep`) and drop the Retry their bubbles offered. */
+  const discardKeptVoice = useCallback((keep?: string) => {
+    const kept = keptVoice.current;
+    let dropped = false;
+    for (const uri of kept) {
+      if (uri === keep) continue;
+      deleteLocalFile(uri);
+      kept.delete(uri);
+      dropped = true;
+    }
+    if (dropped) setMessages(dropVoiceRetries);
+  }, []);
+
   const handleResult = useCallback(
     (r: InputResult, source: InputSource) => {
       const out: ChatMessage[] = [];
@@ -61,48 +103,74 @@ export default function ChatScreen() {
       } else if (r.draft) {
         out.push({ id: nextId(), kind: 'draft', rawInputId: r.rawInputId, source, draft: r.draft, confirmed: null });
       }
-      if (r.answer) out.push({ id: nextId(), kind: 'bot', text: r.answer.text });
-      if (out.length === 0) out.push({ id: nextId(), kind: 'bot', text: 'Sorry, I didn’t get that. Try “450 swiggy”.' });
-
-      const undone = r.undoneTransactionId;
-      if (undone) {
+      if (r.undoneTransactionId) {
+        // Older server: it already deleted the spend instead of proposing it.
+        markRemoved(r.undoneTransactionId);
         void invalidateSpendData(qc);
-        setSeed((s) => s?.map((t) => (t.id === undone ? { ...t, status: 'CANCELLED' } : t)) ?? s);
-        setMessages((prev) =>
-          prev.map((m) => {
-            if (m.kind === 'draft' && m.confirmed?.id === undone) return { ...m, undone: true };
-            if (m.kind === 'verdict' && m.outcome?.decision === 'PROCEEDED' && m.outcome.tx.id === undone) return { ...m, undone: true };
-            if (m.kind === 'line' && m.tx.id === undone) return { ...m, undone: true };
-            return m;
-          }),
-        );
+        out.push({ id: nextId(), kind: 'bot', text: r.answer?.text ?? 'Removed your last spend.' });
+      } else if (r.intent === 'UNDO' && r.undoCandidate) {
+        out.push({
+          id: nextId(),
+          kind: 'undo',
+          text: r.answer?.text ?? 'Remove your last spend?',
+          candidate: r.undoCandidate,
+          state: 'pending',
+        });
+      } else if (r.answer) {
+        out.push({ id: nextId(), kind: 'bot', text: r.answer.text });
       }
-      add(...out);
+      if (out.length === 0) out.push({ id: nextId(), kind: 'bot', text: 'Sorry, I didn’t get that. Try “450 swiggy”.' });
+      // One pending card per spend: a repeat proposal points back at the open card instead.
+      setMessages((prev) => [
+        ...prev,
+        ...out.map((m): ChatMessage =>
+          m.kind === 'undo' && hasPendingUndo(prev, m.candidate.transactionId)
+            ? { id: m.id, kind: 'bot', text: 'Already asked about that one above.' }
+            : m,
+        ),
+      ]);
     },
-    [add, qc],
+    [markRemoved, qc],
   );
 
   const run = useCallback(
-    async (payload: RetryPayload) => {
+    async (payload: InputPayload) => {
       inFlight.current = true;
       setBusy(true);
+      // Sending anything else supersedes an older failed recording.
+      discardKeptVoice(payload.type === 'voice' ? payload.uri : undefined);
       try {
         if (payload.type === 'text') {
           handleResult(await sendTextInput(payload.text), 'TEXT');
         } else {
           const r = await sendVoiceInput(payload.uri);
+          keptVoice.current.delete(payload.uri);
           patch(payload.bubbleId, (m) => (m.kind === 'user' ? { ...m, text: r.transcript ?? '', pending: false } : m));
           handleResult(r, 'VOICE');
         }
       } catch (e) {
-        if (payload.type === 'voice') patch(payload.bubbleId, (m) => (m.kind === 'user' ? { ...m, pending: false } : m));
-        add({ id: nextId(), kind: 'error', text: inputErrorText(e), retry: payload });
+        if (payload.type === 'voice') {
+          // sendVoiceInput keeps the recording only when the upload is worth retrying.
+          const kept = e instanceof VoiceUploadError ? e.kept : null;
+          const reason = e instanceof VoiceUploadError ? e.reason : e;
+          if (kept && !mounted.current) deleteLocalFile(kept);
+          else if (kept) keptVoice.current.add(kept);
+          else keptVoice.current.delete(payload.uri);
+          patch(payload.bubbleId, (m) => (m.kind === 'user' ? { ...m, pending: false } : m));
+          add(
+            kept
+              ? { id: nextId(), kind: 'error', text: inputErrorText(reason), retry: { type: 'voice', recording: kept, bubbleId: payload.bubbleId } }
+              : { id: nextId(), kind: 'error', text: `${inputErrorText(reason)} Hold the mic to try again.`, retry: null },
+          );
+        } else {
+          add({ id: nextId(), kind: 'error', text: inputErrorText(e), retry: payload });
+        }
       } finally {
         inFlight.current = false;
         setBusy(false);
       }
     },
-    [add, handleResult, patch],
+    [add, discardKeptVoice, handleResult, patch],
   );
 
   const sendText = (text: string) => {
@@ -111,21 +179,28 @@ export default function ChatScreen() {
     void run({ type: 'text', text });
   };
 
-  const sendVoice = (uri: string) => {
-    if (inFlight.current) return;
+  /** Returns false (and drops the recording) when another input is still in flight. */
+  const sendVoice = (uri: string): boolean => {
+    if (inFlight.current) {
+      deleteLocalFile(uri);
+      return false;
+    }
     const bubbleId = nextId();
     add({ id: bubbleId, kind: 'user', text: '', voice: true, pending: true });
     void run({ type: 'voice', uri, bubbleId });
+    return true;
   };
 
   const retry = (m: Extract<ChatMessage, { kind: 'error' }>) => {
-    if (inFlight.current) return;
+    const r = m.retry;
+    if (inFlight.current || !r) return;
     setMessages((prev) => prev.filter((x) => x.id !== m.id));
-    if (m.retry.type === 'voice') {
-      const bubbleId = m.retry.bubbleId;
-      patch(bubbleId, (x) => (x.kind === 'user' ? { ...x, pending: true } : x));
+    if (r.type === 'text') {
+      void run(r);
+    } else {
+      patch(r.bubbleId, (x) => (x.kind === 'user' ? { ...x, pending: true } : x));
+      void run({ type: 'voice', uri: r.recording, bubbleId: r.bubbleId });
     }
-    void run(m.retry);
   };
 
   const items = useMemo<ChatMessage[]>(() => {
@@ -155,7 +230,18 @@ export default function ChatScreen() {
       case 'bot':
         return <BotBubble text={m.text} />;
       case 'error':
-        return <ErrorBubble text={m.text} onRetry={() => retry(m)} disabled={busy} />;
+        return <ErrorBubble text={m.text} onRetry={m.retry ? () => retry(m) : undefined} disabled={busy} />;
+      case 'undo':
+        return (
+          <UndoCard
+            text={m.text}
+            candidate={m.candidate}
+            state={m.state}
+            // Settles this card and any other pending card for the same spend.
+            onRemoved={() => markRemoved(m.candidate.transactionId)}
+            onKept={() => patch(m.id, (x) => (x.kind === 'undo' ? { ...x, state: 'kept' } : x))}
+          />
+        );
       case 'draft':
         return (
           <DraftCard

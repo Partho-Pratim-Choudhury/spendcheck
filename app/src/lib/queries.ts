@@ -1,7 +1,8 @@
 import { type QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { ApiError, apiFetch } from './api';
+import { ApiError, apiFetch, isRetryableError } from './api';
 import { addDays, toYmd } from './dates';
+import { deleteLocalFile } from './files';
 import type {
   Category,
   CreateCategoryRequest,
@@ -14,6 +15,7 @@ import type {
   GoalInput,
   InputResult,
   MonthlyReport,
+  PatchGoal,
   Plan,
   PlanSummary,
   PutPlanRequest,
@@ -168,11 +170,39 @@ export function useDecision() {
 export const sendTextInput = (text: string) =>
   apiFetch<InputResult>('/inputs/text', { method: 'POST', body: { text } });
 
-export function sendVoiceInput(uri: string) {
+/** A recording `sendVoiceInput` left on disk because its upload can be retried. */
+export type KeptRecording = string & { readonly __kept: unique symbol };
+
+/** A failed voice upload; `kept` is set only when the recording is still on disk for a retry. */
+export class VoiceUploadError extends Error {
+  readonly reason: unknown;
+  readonly kept: KeptRecording | null;
+
+  constructor(reason: unknown, kept: KeptRecording | null) {
+    super(reason instanceof Error ? reason.message : 'Voice upload failed');
+    this.name = 'VoiceUploadError';
+    this.reason = reason;
+    this.kept = kept;
+  }
+}
+
+/**
+ * Uploads the recording. Deletes the local file on success or a final error; on a retryable error
+ * (network/timeout/408/429/5xx) keeps it and throws a VoiceUploadError carrying it — the caller owns it then.
+ */
+export async function sendVoiceInput(uri: string) {
   const form = new FormData();
   // React Native's FormData accepts a { uri, name, type } file descriptor.
   form.append('audio', { uri, name: 'voice.m4a', type: 'audio/mp4' } as unknown as Blob);
-  return apiFetch<InputResult>('/inputs/voice', { method: 'POST', body: form, timeoutMs: 30_000 });
+  try {
+    const r = await apiFetch<InputResult>('/inputs/voice', { method: 'POST', body: form, timeoutMs: 30_000 });
+    deleteLocalFile(uri);
+    return r;
+  } catch (e) {
+    if (isRetryableError(e)) throw new VoiceUploadError(e, uri as KeptRecording);
+    deleteLocalFile(uri);
+    throw new VoiceUploadError(e, null);
+  }
 }
 
 export function useSavePlan() {
@@ -213,7 +243,7 @@ export function useCreateCategory() {
 export function useSaveGoal() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, body }: { id: number | null; body: Partial<GoalInput> }) =>
+    mutationFn: ({ id, body }: { id: number | null; body: GoalInput | PatchGoal }) =>
       id === null
         ? apiFetch<Goal>('/goals', { method: 'POST', body })
         : apiFetch<Goal>(`/goals/${id}`, { method: 'PATCH', body }),

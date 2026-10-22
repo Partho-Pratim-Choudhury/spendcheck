@@ -4,7 +4,7 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { ApiError } from '@/lib/api';
 import { paiseToInput, parseRupees } from '@/lib/money';
 import { useDeleteGoal, useSaveGoal } from '@/lib/queries';
-import type { Goal, GoalInput } from '@/lib/types';
+import type { Goal, GoalInput, PatchGoal } from '@/lib/types';
 import { colors, spacing } from '@/theme';
 
 import { PrimaryButton } from './PrimaryButton';
@@ -48,13 +48,16 @@ function GoalForm({ goal, onDone }: { goal: Goal | null; onDone: () => void }) {
     if (date.trim() && !DATE_RE.test(date.trim())) errs.targetDate = 'Use YYYY-MM-DD.';
     setLocal(errs);
     if (Object.keys(errs).length > 0) return;
-    const body: GoalInput = {
+    const targetDate = date.trim() || null;
+    const base: GoalInput = {
       name: name.trim(),
       targetPaise: targetPaise!,
       savedPaise: savedPaise!,
       monthlyContributionPaise: monthlyPaise!,
-      targetDate: date.trim() || null,
+      targetDate,
     };
+    // PATCH treats null as "unchanged", so emptying the date on edit needs an explicit clear.
+    const body: GoalInput | PatchGoal = goal?.targetDate && !targetDate ? { ...base, clearTargetDate: true } : base;
     save.mutate({ id: goal?.id ?? null, body }, { onSuccess: onDone });
   };
 

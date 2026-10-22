@@ -32,7 +32,7 @@ export function BotBubble({ text, muted }: { text: string; muted?: boolean }) {
   );
 }
 
-export function ErrorBubble({ text, onRetry, disabled }: { text: string; onRetry: () => void; disabled?: boolean }) {
+export function ErrorBubble({ text, onRetry, disabled }: { text: string; onRetry?: () => void; disabled?: boolean }) {
   return (
     <View style={styles.row}>
       <View style={[styles.bot, styles.botMuted]}>
@@ -40,17 +40,19 @@ export function ErrorBubble({ text, onRetry, disabled }: { text: string; onRetry
           <Feather name="cloud-off" size={14} color={colors.muted} />
           <Text style={[styles.botText, styles.mutedText, styles.flex]}>{text}</Text>
         </View>
-        <Pressable
-          onPress={onRetry}
-          disabled={disabled}
-          accessibilityRole="button"
-          accessibilityLabel="Retry"
-          accessibilityState={{ disabled }}
-          style={[styles.retry, disabled && styles.retryDisabled]}
-          hitSlop={8}>
-          <Feather name="refresh-cw" size={14} color={colors.primary} />
-          <Text style={styles.retryText}>Retry</Text>
-        </Pressable>
+        {onRetry ? (
+          <Pressable
+            onPress={onRetry}
+            disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel="Retry"
+            accessibilityState={{ disabled }}
+            style={[styles.retry, disabled && styles.retryDisabled]}
+            hitSlop={8}>
+            <Feather name="refresh-cw" size={14} color={colors.primary} />
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );

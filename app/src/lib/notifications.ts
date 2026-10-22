@@ -2,15 +2,21 @@ import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { Alert, Platform } from 'react-native';
 
+import { legacyDateReminders } from './reminderMigration';
+
 /**
  * Local notifications only (no push tokens) — supported in Expo Go SDK 57 on Android.
  */
 
-// Channel importance is fixed once created, so raising it needs a new id ('reminders' was DEFAULT).
-export const REMINDER_CHANNEL_ID = 'reminders-v2';
-const LEGACY_CHANNEL_IDS = ['reminders'];
+// Only a channel's name/description can change after creation, so other changes need a new id
+// ('reminders' was DEFAULT importance; 'reminders-v2' was lock-screen PUBLIC).
+export const REMINDER_CHANNEL_ID = 'reminders-v3';
+const LEGACY_CHANNEL_IDS = ['reminders', 'reminders-v2'];
 const DAILY_ID = 'daily-summary';
 const ASKED_KEY = 'spendcheck.notifAsked';
+
+/** Generic on purpose: notifications can show on the lock screen. Details stay in the chat card. */
+export const DEFER_REMINDER = { title: 'Still want it?', body: 'You asked me to check back about a purchase.' } as const;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -29,8 +35,30 @@ async function ensureChannel(): Promise<void> {
     description: 'Daily summary and "ask me later" reminders',
     // HIGH = heads-up banner; DEFAULT only lands silently in the shade.
     importance: Notifications.AndroidImportance.HIGH,
+    // Lock screen shows only that a reminder arrived; the content needs an unlock.
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
   });
+  await moveLegacyReminders();
   await Promise.all(LEGACY_CHANNEL_IDS.map((id) => Notifications.deleteNotificationChannelAsync(id).catch(() => undefined)));
+}
+
+/**
+ * Deleting a channel drops what's scheduled on it, so re-schedule pending "ask me later" reminders
+ * on the current channel first (same time, generic body). The daily one is re-created by setupDailyReminder.
+ */
+async function moveLegacyReminders(): Promise<void> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
+  const moves = legacyDateReminders(scheduled, LEGACY_CHANNEL_IDS).filter((r) => r.identifier !== DAILY_ID);
+  await Promise.all(
+    moves.map(({ identifier, date }) =>
+      // Same identifier replaces the legacy request.
+      Notifications.scheduleNotificationAsync({
+        identifier,
+        content: { ...DEFER_REMINDER, data: { url: '/chat' } },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date, channelId: REMINDER_CHANNEL_ID },
+      }).catch(() => undefined),
+    ),
+  );
 }
 
 function explain(): Promise<boolean> {
