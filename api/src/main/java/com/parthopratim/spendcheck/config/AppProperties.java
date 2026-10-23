@@ -13,6 +13,8 @@ public record AppProperties(
         @DefaultValue Llm llm,
         @DefaultValue Stt stt,
         @DefaultValue RawInputs rawInputs,
+        @DefaultValue Signup signup,
+        @DefaultValue AiRateLimit aiRateLimit,
         @DefaultValue("Asia/Kolkata") ZoneId tz) {
 
     public record Jwt(String secret, @DefaultValue("7d") Duration ttl) {
@@ -74,4 +76,25 @@ public record AppProperties(
 
     public record Stt(@DefaultValue("gpt-4o-mini-transcribe") String model,
                       @DefaultValue("20s") Duration timeout) {}
+
+    /** Self sign-up gate. A blank {@code inviteCode} (unset {@code SIGNUP_INVITE_CODE}) closes sign-ups entirely. */
+    public record Signup(@DefaultValue("") String inviteCode) {
+        public boolean isOpen() {
+            return inviteCode != null && !inviteCode.isBlank();
+        }
+
+        @Override
+        public String toString() {
+            return "Signup[inviteCode=" + (isOpen() ? "****" : "(unset)") + "]";
+        }
+    }
+
+    /** Per-user cap on the Groq-calling endpoints (text, voice, pre-check), requests per minute. */
+    public record AiRateLimit(@DefaultValue("15") int perMinute) {
+        public AiRateLimit {
+            if (perMinute < 1) {
+                throw new IllegalStateException("spendcheck.ai-rate-limit.per-minute must be at least 1.");
+            }
+        }
+    }
 }

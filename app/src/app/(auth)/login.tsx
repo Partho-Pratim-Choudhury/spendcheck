@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { type ComponentRef, useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
@@ -255,6 +256,18 @@ export default function LoginScreen() {
               </View>
             ) : null}
           </View>
+
+          <Pressable
+            onPress={() => router.push('/register')}
+            hitSlop={8}
+            disabled={submitting}
+            style={styles.switchAuth}
+            accessibilityRole="link"
+            accessibilityLabel="New here? Create account">
+            <Text style={styles.switchAuthText}>
+              New here? <Text style={styles.switchAuthLink}>Create account</Text>
+            </Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -300,4 +313,7 @@ const styles = StyleSheet.create({
   serverToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', maxWidth: '100%' },
   serverToggleLabel: { fontSize: 14, color: colors.muted, fontWeight: '500' },
   serverSummary: { ...typography.caption, flexShrink: 1 },
+  switchAuth: { alignItems: 'center' },
+  switchAuthText: { fontSize: 14, color: colors.muted },
+  switchAuthLink: { color: colors.primary, fontWeight: '600' },
 });

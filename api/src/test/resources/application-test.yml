@@ -6,6 +6,12 @@ spendcheck:
     password: test-password
     name: Partho
     salary-day: 7
+  signup:
+    # Open sign-ups in the shared test context; the "closed" case overrides this with a blank code.
+    invite-code: test-invite
+  ai-rate-limit:
+    # Effectively unlimited for the shared context; the rate-limit test overrides this low.
+    per-minute: 1000
 spring:
   ai:
     openai:

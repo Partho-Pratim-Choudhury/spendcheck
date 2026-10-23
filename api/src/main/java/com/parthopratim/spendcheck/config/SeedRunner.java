@@ -3,9 +3,7 @@ package com.parthopratim.spendcheck.config;
 import com.parthopratim.spendcheck.auth.Passwords;
 import com.parthopratim.spendcheck.auth.User;
 import com.parthopratim.spendcheck.auth.UserRepository;
-import com.parthopratim.spendcheck.ledger.Category;
 import com.parthopratim.spendcheck.ledger.CategoryKind;
-import com.parthopratim.spendcheck.ledger.CategoryRepository;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -59,14 +57,14 @@ public class SeedRunner implements ApplicationRunner {
 
     private final AppProperties props;
     private final UserRepository users;
-    private final CategoryRepository categories;
+    private final CategorySeeder categorySeeder;
     private final PasswordEncoder passwordEncoder;
 
-    public SeedRunner(AppProperties props, UserRepository users, CategoryRepository categories,
+    public SeedRunner(AppProperties props, UserRepository users, CategorySeeder categorySeeder,
                       PasswordEncoder passwordEncoder) {
         this.props = props;
         this.users = users;
-        this.categories = categories;
+        this.categorySeeder = categorySeeder;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -89,9 +87,7 @@ public class SeedRunner implements ApplicationRunner {
         }
         User user = users.save(new User(email, passwordEncoder.encode(seed.password()), seed.name(),
                 props.tz().getId(), seed.salaryDay()));
-        for (Seed c : DEFAULT_CATEGORIES) {
-            categories.save(new Category(user.getId(), c.name(), c.kind(), c.aliases()));
-        }
+        categorySeeder.seedDefaults(user.getId());
         log.info("Seeded user id={} with {} categories.", user.getId(), DEFAULT_CATEGORIES.size());
     }
 }

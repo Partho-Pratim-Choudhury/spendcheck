@@ -26,6 +26,16 @@ export interface LoginRequest {
   password: string;
 }
 
+/** POST /auth/register — invite-gated self sign-up; responds with the same body as login. */
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name: string;
+  /** Day of month salary is credited (1–31). */
+  salaryDay: number;
+  inviteCode: string;
+}
+
 export interface LoginResponse {
   token: string;
   /** ISO-8601 timestamp. */

@@ -3,7 +3,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 
 import { apiFetch, DEFAULT_API_URL, getApiUrl, isNetworkError, setApiUrl, setAuthToken, setUnauthorizedHandler } from './api';
 import { normaliseServerUrl, SERVER_URL_KEY } from './serverUrl';
-import type { LoginResponse, User } from './types';
+import type { LoginResponse, RegisterRequest, User } from './types';
 
 const TOKEN_KEY = 'spendcheck.token';
 const EXPIRES_KEY = 'spendcheck.expiresAt';
@@ -15,6 +15,8 @@ interface AuthContextValue {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
+  /** Invite-gated self sign-up; signs in on success exactly like login. */
+  register: (input: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
   /** Replace the cached user after a profile change (e.g. salary day). */
   updateUser: (user: User) => void;
@@ -114,12 +116,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [signOutLocal]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await apiFetch<LoginResponse>('/auth/login', {
-      method: 'POST',
-      auth: false,
-      body: { email: email.trim(), password },
-    });
+  // Single post-auth path: login and register both land here once the server hands back a session.
+  const applyAuth = useCallback(async (res: LoginResponse) => {
     await persist(res.token, res.expiresAt);
     setAuthToken(res.token);
     setToken(res.token);
@@ -127,6 +125,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setServerSettingsRequested(false);
     setStatus('signedIn');
   }, []);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res = await apiFetch<LoginResponse>('/auth/login', {
+        method: 'POST',
+        auth: false,
+        body: { email: email.trim(), password },
+      });
+      await applyAuth(res);
+    },
+    [applyAuth],
+  );
+
+  const register = useCallback(
+    async (input: RegisterRequest) => {
+      const res = await apiFetch<LoginResponse>('/auth/register', {
+        method: 'POST',
+        auth: false,
+        body: {
+          email: input.email.trim(),
+          password: input.password,
+          name: input.name.trim(),
+          salaryDay: input.salaryDay,
+          inviteCode: input.inviteCode.trim(),
+        },
+      });
+      await applyAuth(res);
+    },
+    [applyAuth],
+  );
 
   const saveServerUrl = useCallback(async (url: string) => {
     setApiUrl(url);
@@ -153,6 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       token,
       login,
+      register,
       logout,
       updateUser,
       serverUrl,
@@ -160,7 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       changeServer,
       serverSettingsRequested,
     }),
-    [status, user, token, login, logout, updateUser, serverUrl, saveServerUrl, changeServer, serverSettingsRequested],
+    [status, user, token, login, register, logout, updateUser, serverUrl, saveServerUrl, changeServer, serverSettingsRequested],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -8,6 +8,24 @@ All endpoints except `POST /auth/login` and `/actuator/health` need `Authorizati
 Existing (unchanged): `POST /auth/login`, `GET /me`, `GET|POST|PATCH /categories`,
 `GET|POST|PATCH|DELETE /transactions`.
 
+## Registration (self sign-up, invite-gated)
+
+- `POST /auth/register` (public) `{ email, password, name, salaryDay, inviteCode }` → 201 with the
+  same body as login `{ token, expiresAt, user: { id, email, name, salaryDay } }`, and the new
+  user's default categories are seeded. The new user is signed in immediately.
+  - 403 ProblemDetail if `inviteCode` is wrong, or if sign-up is disabled (no code configured
+    server-side) — detail distinguishes the two ("invalid invite code" vs "sign-ups are closed").
+  - 409 if the email already exists.
+  - 400 validation (`errors` map): email must be a valid address; password 8–72 chars; name
+    non-blank ≤ 60; salaryDay 1–31; inviteCode required.
+  - The invite code is only for creating an account; existing users just log in.
+
+## AI rate limit
+
+The Groq-calling endpoints (`POST /inputs/text`, `POST /inputs/voice`, `POST /checks`) are limited
+to ~15 requests/minute **per user**. Over that → 429 ProblemDetail ("Too many requests — give it a
+moment.") with a `Retry-After` header (seconds). Other endpoints are unlimited.
+
 Change to existing: `POST /transactions` accepts optional `rawInputId` (number; must belong to the
 user, else 400 `errors.rawInputId`).
 

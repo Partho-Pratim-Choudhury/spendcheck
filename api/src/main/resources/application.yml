@@ -81,3 +81,8 @@ spendcheck:
     timeout: 20s
   raw-inputs:
     retention-days: ${RAW_INPUT_RETENTION_DAYS:90}
+  signup:
+    # Blank/unset closes self sign-up; set a shared invite code to open it.
+    invite-code: ${SIGNUP_INVITE_CODE:}
+  ai-rate-limit:
+    per-minute: ${AI_RATE_LIMIT_PER_MINUTE:15}

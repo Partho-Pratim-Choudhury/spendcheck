@@ -3,12 +3,14 @@ package com.parthopratim.spendcheck.auth;
 import com.parthopratim.spendcheck.common.NotFoundException;
 import jakarta.validation.Valid;
 import java.util.Locale;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -19,16 +21,24 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final CurrentUser currentUser;
+    private final RegistrationService registrationService;
     /** Compared against when the email is unknown, so response timing doesn't reveal which emails exist. */
     private final String dummyHash;
 
     public AuthController(UserRepository users, PasswordEncoder passwordEncoder, JwtService jwtService,
-                          CurrentUser currentUser) {
+                          CurrentUser currentUser, RegistrationService registrationService) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.currentUser = currentUser;
+        this.registrationService = registrationService;
         this.dummyHash = passwordEncoder.encode("timing-equaliser");
+    }
+
+    @PostMapping("/auth/register")
+    @ResponseStatus(HttpStatus.CREATED)
+    public LoginResponse register(@Valid @RequestBody RegisterRequest req) {
+        return registrationService.register(req);
     }
 
     @PostMapping("/auth/login")
