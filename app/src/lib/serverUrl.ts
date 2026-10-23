@@ -3,8 +3,8 @@ export const SERVER_URL_KEY = 'spendcheck.serverUrl';
 
 export const SERVER_URL_PLACEHOLDER = 'http://192.168.x.x:8077';
 
-/** Origin only: scheme + host + optional port, no path. */
-const SERVER_URL_PATTERN = /^https?:\/\/[^\s/:]+(:\d{1,5})?$/;
+/** Origin only: scheme + hostname / IPv4 + optional port, no path, query, fragment or userinfo. */
+const SERVER_URL_PATTERN = /^https?:\/\/[A-Za-z0-9.-]+(?::(\d{1,5}))?$/;
 
 export type ServerUrlResult = { ok: true; url: string } | { ok: false; error: string };
 
@@ -17,7 +17,9 @@ export function normaliseServerUrl(input: string | null | undefined): ServerUrlR
   url = url.replace(/\/+$/, '');
   // Scheme is case-insensitive; keep the rest as typed.
   url = url.replace(/^[a-z][a-z0-9+.-]*:/i, (s) => s.toLowerCase());
-  if (!SERVER_URL_PATTERN.test(url)) {
+  const m = SERVER_URL_PATTERN.exec(url);
+  const port = m?.[1] === undefined ? null : Number(m[1]);
+  if (!m || (port !== null && (port < 1 || port > 65535))) {
     return { ok: false, error: 'Use http(s)://host[:port] with no path, e.g. http://192.168.1.10:8077' };
   }
   return { ok: true, url };

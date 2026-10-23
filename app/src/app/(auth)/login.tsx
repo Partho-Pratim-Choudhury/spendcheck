@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { decorative } from '@/components/a11y';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { ApiError, checkServerHealth } from '@/lib/api';
+import { ApiError, checkServerHealth, getApiUrl, setApiUrl } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { normaliseServerUrl, SERVER_URL_PLACEHOLDER } from '@/lib/serverUrl';
 import { colors, radii, spacing, typography } from '@/theme';
@@ -36,6 +36,15 @@ export default function LoginScreen() {
     });
     return () => sub.remove();
   }, []);
+  // A Test can resolve after the screen is gone (or after sign-in succeeded): drop its result then.
+  const mounted = useRef(true);
+  const signedIn = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   // Server settings: collapsed when a URL is already known, unless the user asked to change it.
   const [serverOpen, setServerOpen] = useState(serverSettingsRequested || !serverUrl);
@@ -44,7 +53,7 @@ export default function LoginScreen() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-  const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
+  const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting && !testing;
 
   function onServerChange(text: string) {
     setServerInput(text);
@@ -71,7 +80,9 @@ export default function LoginScreen() {
     setTesting(true);
     setTestResult(null);
     const reachable = await checkServerHealth(url);
+    if (!mounted.current || signedIn.current) return;
     if (reachable) await saveServerUrl(url);
+    if (!mounted.current) return;
     setTestResult(reachable ? { ok: true, message: 'Server reachable' } : { ok: false, message: `Can't reach ${url}` });
     setTesting(false);
   }
@@ -82,18 +93,25 @@ export default function LoginScreen() {
     if (!url) return;
     setSubmitting(true);
     setError(null);
+    // Use the typed server for this request, but only persist it once sign-in works; on failure go back
+    // to the previous one and leave the typed value in the field to correct.
+    const previousUrl = getApiUrl();
+    setApiUrl(url);
     try {
-      if (url !== serverUrl) await saveServerUrl(url);
       await login(email, password);
-      // On success the root guard swaps to the tabs automatically.
     } catch (e) {
+      setApiUrl(previousUrl);
       if (e instanceof ApiError) {
         setError(e.status === 401 ? (e.detail || 'Incorrect email or password.') : e.detail);
       } else {
         setError('Something went wrong. Please try again.');
       }
       setSubmitting(false);
+      return;
     }
+    signedIn.current = true;
+    if (url !== serverUrl) await saveServerUrl(url); // never throws
+    // The root guard swaps to the tabs automatically.
   }
 
   return (

@@ -259,13 +259,35 @@ class PlanIntegrationTest extends IntegrationTestSupport {
     @Test
     void rolloverPreviewMatchesWhatRolloverCreatesAndChangesNothing() throws Exception {
         // mid-period (far from salary day), early, late (plan already ended) and on salary day after auto rollover
-        assertPreviewMatchesRollover(LocalDate.of(2026, 10, 23), "2026-10-23", "2026-12-06", 45);
-        assertPreviewMatchesRollover(LocalDate.of(2026, 11, 5), "2026-11-05", "2026-12-06", 32);
-        assertPreviewMatchesRollover(LocalDate.of(2026, 11, 10), "2026-11-10", "2026-12-06", 27);
-        assertPreviewMatchesRollover(LocalDate.of(2026, 11, 7), "2026-11-07", "2026-12-06", 30);
+        assertPreviewMatchesRollover(LocalDate.of(2026, 10, 23), "2026-10-23", "2026-12-06", 45, false);
+        assertPreviewMatchesRollover(LocalDate.of(2026, 11, 5), "2026-11-05", "2026-12-06", 32, false);
+        assertPreviewMatchesRollover(LocalDate.of(2026, 11, 10), "2026-11-10", "2026-12-06", 27, false);
+        // the auto-rolled plan started today / yesterday: kept, only its end moves
+        assertPreviewMatchesRollover(LocalDate.of(2026, 11, 7), "2026-11-07", "2026-12-06", 30, true);
+        assertPreviewMatchesRollover(LocalDate.of(2026, 11, 8), "2026-11-07", "2026-12-06", 30, true);
     }
 
-    private void assertPreviewMatchesRollover(LocalDate day, String start, String end, int days) throws Exception {
+    @Test
+    void rolloverPreviewAfterPeriodEndRollsForwardExactlyOnce() throws Exception {
+        TestUser u = newUser(7);
+        today(OCT_22);
+        putReferencePlan(u);
+        today(LocalDate.of(2026, 11, 10)); // plan ended 11-06, nothing has rolled it forward yet
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(as(u, get("/api/v1/plans/rollover/preview")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.periodStart").value("2026-11-10"))
+                    .andExpect(jsonPath("$.extendsCurrent").value(false));
+        }
+        mvc.perform(as(u, get("/api/v1/plans")))
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].periodStart").value("2026-11-07"))
+                .andExpect(jsonPath("$[0].status").value("ACTIVE"))
+                .andExpect(jsonPath("$[1].status").value("CLOSED"));
+    }
+
+    private void assertPreviewMatchesRollover(LocalDate day, String start, String end, int days,
+                                              boolean extendsCurrent) throws Exception {
         TestUser u = newUser(7);
         today(OCT_22);
         putReferencePlan(u);
@@ -277,7 +299,8 @@ class PlanIntegrationTest extends IntegrationTestSupport {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.periodStart").value(start))
                     .andExpect(jsonPath("$.periodEnd").value(end))
-                    .andExpect(jsonPath("$.daysTotal").value(days));
+                    .andExpect(jsonPath("$.daysTotal").value(days))
+                    .andExpect(jsonPath("$.extendsCurrent").value(extendsCurrent));
         }
         mvc.perform(as(u, get("/api/v1/plans"))).andExpect(jsonPath("$", hasSize(before)));
         mvc.perform(as(u, post("/api/v1/plans/rollover")))

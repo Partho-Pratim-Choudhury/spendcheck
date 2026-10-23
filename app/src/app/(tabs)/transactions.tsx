@@ -47,25 +47,28 @@ export default function TransactionsScreen() {
       })),
     [tx.data, today],
   );
-  // Headline = NEED+WANT so it matches Home's "spent"; FIXED (rent, EMI) is called out separately.
-  const { variablePaise, fixedPaise } = useMemo(
-    () => splitFixedSpends(tx.data ?? [], categories.data ?? []),
-    [tx.data, categories.data],
-  );
+  // Headline = NEED+WANT so it matches Home's "spent"; FIXED (rent, EMI) is called out separately. The split
+  // needs the category kinds: no headline until they load, and a plain unsplit total if they fail.
+  const headline = useMemo(() => {
+    const txs = tx.data ?? [];
+    if (categories.data) return splitFixedSpends(txs, categories.data);
+    if (categories.isError) return { variablePaise: txs.reduce((sum, t) => sum + t.amountPaise, 0), fixedPaise: 0 };
+    return null;
+  }, [tx.data, categories.data, categories.isError]);
 
   return (
     <View style={styles.screen}>
       <View style={styles.top}>
         <Text style={styles.total}>
-          <Text style={styles.totalAmount}>{formatINR(variablePaise)}</Text>
+          <Text style={styles.totalAmount}>{headline ? formatINR(headline.variablePaise) : '—'}</Text>
           <Text style={styles.muted}>
             {' '}
             {range.fromPlan ? 'this period' : 'last 30 days'}
             {filter.key !== 'all' ? ` · ${filter.label}` : ''}
           </Text>
         </Text>
-        {fixedPaise > 0 ? (
-          <Text style={styles.fixedLine}>+ {formatINR(fixedPaise)} fixed costs (rent, EMI…)</Text>
+        {headline && headline.fixedPaise > 0 ? (
+          <Text style={styles.fixedLine}>+ {formatINR(headline.fixedPaise)} fixed costs (rent, EMI…)</Text>
         ) : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           {filters.map((f) => (

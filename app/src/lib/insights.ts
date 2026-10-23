@@ -1,5 +1,6 @@
 import { WEEKDAY_NAMES_MON_FIRST } from './dates';
-import type { Category, Transaction } from './types';
+import { formatINR } from './money';
+import type { Category, Dashboard, MonthlyReport, Transaction } from './types';
 
 export interface WeekdayInsight {
   /** 0 = Monday. */
@@ -67,4 +68,36 @@ export function splitFixedSpends(
  */
 export function onTrackToSavePaise(savingsTargetPaise: number, discretionaryPaise: number, projectedPaise: number): number {
   return Math.max(0, savingsTargetPaise + discretionaryPaise - projectedPaise);
+}
+
+export interface SavingsTile {
+  label: string;
+  /** null = not known yet (render a placeholder). */
+  paise: number | null;
+  sub: string;
+  tone?: 'good' | 'warn';
+}
+
+/**
+ * The report's savings tile. A closed plan shows what was saved. Mid-period, totals.savedPaise counts
+ * everything not yet spent as saved, so an ACTIVE plan shows the dashboard's projection instead: a
+ * placeholder while the dashboard loads, and plain "unspent so far" if it can't be had.
+ */
+export function savingsTile(r: MonthlyReport, dashboard: Dashboard | null | undefined, dashboardLoading: boolean): SavingsTile {
+  const t = r.totals;
+  if (r.plan.status !== 'ACTIVE') {
+    return {
+      label: 'Saved',
+      paise: t.savedPaise,
+      sub: `target ${formatINR(t.savingsTargetPaise)}`,
+      tone: t.savedPaise >= t.savingsTargetPaise ? 'good' : 'warn',
+    };
+  }
+  if (dashboard && dashboard.plan.id === r.plan.id) {
+    const m = dashboard.month;
+    const paise = onTrackToSavePaise(t.savingsTargetPaise, m.discretionaryPaise, m.projectedPaise);
+    return { label: 'On track to save', paise, sub: 'projected', tone: paise >= t.savingsTargetPaise ? 'good' : 'warn' };
+  }
+  if (dashboardLoading) return { label: 'On track to save', paise: null, sub: 'projected' };
+  return { label: 'Unspent so far', paise: Math.max(0, t.discretionaryPaise - t.spentPaise), sub: 'of the spending budget' };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { onTrackToSavePaise, peakWantsWeekday, splitFixedSpends, splitPct, usageTone } from '../insights';
+import { onTrackToSavePaise, peakWantsWeekday, savingsTile, splitFixedSpends, splitPct, usageTone } from '../insights';
+import type { Dashboard, MonthlyReport } from '../types';
 
 describe('insights', () => {
   it('finds the peak wants weekday', () => {
@@ -49,5 +50,47 @@ describe('insights', () => {
     // overspend eats into the target
     expect(onTrackToSavePaise(1000000, 5000000, 5400000)).toBe(600000);
     expect(onTrackToSavePaise(1000000, 5000000, 7000000)).toBe(0);
+  });
+});
+
+describe('savingsTile', () => {
+  const report = (status: 'ACTIVE' | 'CLOSED'): MonthlyReport =>
+    ({
+      plan: { id: 7, periodStart: '2026-10-07', periodEnd: '2026-11-06', status },
+      // mid-period savedPaise counts the unspent budget as saved: 10k target + 30k unspent
+      totals: { discretionaryPaise: 5000000, spentPaise: 2000000, savedPaise: 4000000, savingsTargetPaise: 1000000 },
+    }) as MonthlyReport;
+  const dashboard = (planId: number): Dashboard =>
+    ({ plan: { id: planId }, month: { discretionaryPaise: 5000000, projectedPaise: 4729505 } }) as Dashboard;
+
+  it('shows what was saved for a closed plan', () => {
+    expect(savingsTile(report('CLOSED'), undefined, false)).toEqual({
+      label: 'Saved',
+      paise: 4000000,
+      sub: 'target ₹10,000',
+      tone: 'good',
+    });
+  });
+
+  it('shows the projection for an active plan once the dashboard is in', () => {
+    expect(savingsTile(report('ACTIVE'), dashboard(7), false)).toEqual({
+      label: 'On track to save',
+      paise: 1270495,
+      sub: 'projected',
+      tone: 'good',
+    });
+  });
+
+  it('shows a placeholder, never "Saved", while the dashboard loads', () => {
+    expect(savingsTile(report('ACTIVE'), undefined, true)).toEqual({ label: 'On track to save', paise: null, sub: 'projected' });
+    expect(savingsTile(report('ACTIVE'), dashboard(6), true).paise).toBeNull();
+  });
+
+  it('falls back to unspent so far when the dashboard is unavailable', () => {
+    for (const d of [undefined, dashboard(6)]) {
+      const tile = savingsTile(report('ACTIVE'), d, false);
+      expect(tile.label).toBe('Unspent so far');
+      expect(tile.paise).toBe(3000000);
+    }
   });
 });

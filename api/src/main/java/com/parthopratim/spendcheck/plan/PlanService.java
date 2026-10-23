@@ -215,17 +215,21 @@ public class PlanService {
 
     /**
      * The period {@link #rollover} would leave active if called now, without changing it (a stale plan is still
-     * rolled forward first, as every read of the current plan does). 409 when the user has no plan at all.
+     * rolled forward first, under the user lock as every plan write, so the daily job or a concurrent rollover
+     * can't race it). 409 when the user has no plan at all.
      */
     @Transactional
     public RolloverPreview rolloverPreview(long userId) {
-        BudgetPlan active = activeUpToDate(userId).orElse(null);
+        User user = lock(userId);
+        LocalDate today = userTime.today(user);
+        rollForwardLocked(user, today);
+        BudgetPlan active = plans.findByUserIdAndStatus(userId, PlanStatus.ACTIVE).orElse(null);
         if (active == null && plans.findFirstByUserIdOrderByPeriodStartDescIdDesc(userId).isEmpty()) {
             throw new ConflictException("No plan to roll over; set up a plan first.");
         }
-        User user = users.findById(userId).orElseThrow(() -> new NotFoundException("User not found."));
-        Period period = rolloverTarget(active, userTime.today(user), user.getSalaryDay());
-        return new RolloverPreview(period.start(), period.end(), PeriodCalculator.daysTotal(period));
+        Period period = rolloverTarget(active, today, user.getSalaryDay());
+        return new RolloverPreview(period.start(), period.end(), PeriodCalculator.daysTotal(period),
+                keepsActive(active, today));
     }
 
     @Transactional

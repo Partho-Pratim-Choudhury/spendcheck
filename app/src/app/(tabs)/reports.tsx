@@ -10,7 +10,7 @@ import { IconButton } from '@/components/IconButton';
 import { MoneyText } from '@/components/MoneyText';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { monthName, periodLabel } from '@/lib/dates';
-import { onTrackToSavePaise, peakWantsWeekday, splitPct } from '@/lib/insights';
+import { peakWantsWeekday, savingsTile, splitPct } from '@/lib/insights';
 import { formatINR, type Rounding } from '@/lib/money';
 import { useDashboard, usePlans, useReport } from '@/lib/queries';
 import type { Dashboard, MonthlyReport, PlanSummary } from '@/lib/types';
@@ -25,11 +25,12 @@ export default function ReportsScreen() {
   // Wait for the plan list so the report is fetched once, under the id it will actually show.
   const report = useReport(effectiveId, plans.isSuccess && effectiveId !== null);
   const idx = list.findIndex((p) => p.id === effectiveId);
-  // Only the current plan's "Saved" needs the dashboard's projection (usually already cached by Home).
+  // Only the current plan's savings tile needs the dashboard's projection (usually already cached by Home).
   const dashboard = useDashboard();
 
   const refresh = () => {
     void plans.refetch();
+    void dashboard.refetch();
     if (effectiveId !== null) void report.refetch();
   };
 
@@ -37,7 +38,7 @@ export default function ReportsScreen() {
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={report.isRefetching} onRefresh={refresh} colors={[colors.primary]} />}>
+      refreshControl={<RefreshControl refreshing={report.isRefetching || dashboard.isRefetching} onRefresh={refresh} colors={[colors.primary]} />}>
       {plans.isPending ? (
         <LoadingState />
       ) : plans.isError ? (
@@ -59,7 +60,7 @@ export default function ReportsScreen() {
           ) : !report.data ? (
             <EmptyState icon="bar-chart-2" title="No report for this month" />
           ) : (
-            <ReportBody r={report.data} dashboard={dashboard.data ?? null} />
+            <ReportBody r={report.data} dashboard={dashboard.data} dashboardLoading={dashboard.isPending || dashboard.isFetching} />
           )}
         </>
       )}
@@ -86,21 +87,23 @@ function MonthPicker({ plan, onPrev, onNext }: { plan: PlanSummary | null; onPre
   );
 }
 
-function ReportBody({ r, dashboard }: { r: MonthlyReport; dashboard: Dashboard | null }) {
+function ReportBody({
+  r,
+  dashboard,
+  dashboardLoading,
+}: {
+  r: MonthlyReport;
+  dashboard: Dashboard | null | undefined;
+  dashboardLoading: boolean;
+}) {
   const t = r.totals;
   const spentAny = t.spentPaise > 0;
-  // Mid-period, totals.savedPaise counts everything not yet spent as saved; show the projection instead.
-  const live = r.plan.status === 'ACTIVE' && dashboard?.plan.id === r.plan.id ? dashboard.month : null;
-  const onTrack = live ? onTrackToSavePaise(t.savingsTargetPaise, live.discretionaryPaise, live.projectedPaise) : null;
+  const saving = savingsTile(r, dashboard, dashboardLoading);
   return (
     <>
       <View style={styles.tiles}>
         <Tile label="Spent" paise={t.spentPaise} sub={`of ${formatINR(t.discretionaryPaise)}`} />
-        {onTrack !== null ? (
-          <Tile label="On track to save" paise={onTrack} round="down" sub="projected" tone={onTrack >= t.savingsTargetPaise ? 'good' : 'warn'} />
-        ) : (
-          <Tile label="Saved" paise={t.savedPaise} round="down" sub={`target ${formatINR(t.savingsTargetPaise)}`} tone={t.savedPaise >= t.savingsTargetPaise ? 'good' : 'warn'} />
-        )}
+        <Tile label={saving.label} paise={saving.paise} round="down" sub={saving.sub} tone={saving.tone} />
         <Tile label="Pauses" paise={r.pausesSavedPaise} round="down" sub={`${r.skippedCount} skipped`} tone="good" />
       </View>
       {!spentAny ? (
@@ -138,7 +141,8 @@ function Tile({
   round,
 }: {
   label: string;
-  paise: number;
+  /** null = not loaded yet: shows a dash. */
+  paise: number | null;
   sub: string;
   tone?: 'good' | 'warn';
   round?: Rounding;
@@ -147,7 +151,13 @@ function Tile({
   return (
     <View style={styles.tile}>
       <Text style={styles.tileLabel}>{label.toUpperCase()}</Text>
-      <MoneyText paise={paise} round={round} style={[styles.tileValue, { color }]} />
+      {paise === null ? (
+        <Text style={[typography.amount, styles.tileValue, { color: colors.muted }]} accessibilityLabel="Loading">
+          —
+        </Text>
+      ) : (
+        <MoneyText paise={paise} round={round} style={[styles.tileValue, { color }]} />
+      )}
       <Text style={styles.caption} numberOfLines={1}>
         {sub}
       </Text>

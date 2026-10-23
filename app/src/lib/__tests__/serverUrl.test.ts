@@ -39,8 +39,21 @@ describe('normaliseServerUrl', () => {
       'https:///',
       'http://10.0.0.2:80a',
       'http://10.0.0.2:8077:1',
+      'http://10.0.0.2?x',
+      'http://10.0.0.2:8077?x',
+      'http://10.0.0.2#x',
+      'http://user@10.0.0.2:8077',
+      'user@host',
+      'http://10.0.0.2:0',
+      'http://10.0.0.2:70000',
+      'http://10.0.0.2:65536',
     ]) {
       expect(normaliseServerUrl(bad).ok).toBe(false);
     }
+  });
+
+  it('accepts the port range bounds', () => {
+    expect(ok('http://10.0.0.2:1')).toBe('http://10.0.0.2:1');
+    expect(ok('10.0.0.2:65535')).toBe('http://10.0.0.2:65535');
   });
 });

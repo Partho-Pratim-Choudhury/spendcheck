@@ -132,6 +132,8 @@ export interface RolloverPreview {
   /** YYYY-MM-DD (inclusive) */
   periodEnd: string;
   daysTotal: number;
+  /** The active plan (started today or yesterday) is kept and only its end moves; nothing is closed. */
+  extendsCurrent: boolean;
 }
 
 export interface PlanSummary {
