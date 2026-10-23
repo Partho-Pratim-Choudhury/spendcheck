@@ -168,13 +168,14 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
     setPreviewing(true);
     const preview = await fetchRolloverPreview().catch(() => null);
     setPreviewing(false);
+    const extends_ = preview?.extendsCurrent === true;
     Alert.alert(
-      'Start a new month today?',
+      extends_ ? 'Extend this period?' : 'Start a new month today?',
       rolloverConfirmText(preview, user?.salaryDay),
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Start new month',
+          text: extends_ ? 'Extend period' : 'Start new month',
           onPress: () =>
             rollover.mutate(undefined, {
               onError: (e) => Alert.alert('Couldn’t start a new month', errorMessage(e)),
