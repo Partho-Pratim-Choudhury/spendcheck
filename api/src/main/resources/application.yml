@@ -40,7 +40,8 @@ spring:
       max-request-size: 3MB
 
 server:
-  port: ${SERVER_PORT:8077}
+  # Render/Heroku-style hosts inject PORT; fall back to SERVER_PORT, then 8077 locally.
+  port: ${PORT:${SERVER_PORT:8077}}
   tomcat:
     # Read (and discard) oversized uploads so the client gets the 400 instead of a reset connection.
     max-swallow-size: 10MB

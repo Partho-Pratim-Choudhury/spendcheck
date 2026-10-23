@@ -1,48 +1,34 @@
 # Deploying SpendCheck
 
-Backend → **Fly.io** (Docker + managed Postgres). App → **EAS** (cloud-built APK/AAB).
-CI runs on every push/PR via GitHub Actions; deploys below are run by hand until CD is wired.
+Backend → **Render** (Docker + managed Postgres, free, no card). App → **EAS** (cloud-built
+APK/AAB). CI runs on every push/PR via GitHub Actions; deploys below are run by hand.
 
-## 1. Backend on Fly.io
+## 1. Backend on Render
 
-One-time:
+`render.yaml` at the repo root defines the API and a Postgres database.
 
-```bash
-curl -L https://fly.io/install.sh | sh     # install flyctl
-fly auth login
-cd api
-fly launch --no-deploy                     # creates the app from fly.toml (pick a unique app name)
-fly postgres create --name spendcheck-db --region sin --initial-cluster-size 1
-fly postgres attach spendcheck-db          # prints a DATABASE_URL (postgres://user:pass@host:5432/db)
-```
-
-Set secrets (the app reads a JDBC URL, so convert `postgres://` → `jdbc:postgresql://` and split out
-the credentials). Generate strong values; never commit them:
-
-```bash
-fly secrets set \
-  SPRING_DATASOURCE_URL="jdbc:postgresql://<host>:5432/<db>" \
-  SPRING_DATASOURCE_USERNAME="<user>" \
-  SPRING_DATASOURCE_PASSWORD="<pass>" \
-  JWT_SECRET="$(openssl rand -base64 48)" \
-  OPENAI_API_KEY="gsk_...your Groq key..." \
-  APP_USER_EMAIL="you@example.com" \
-  APP_USER_PASSWORD="<your app password>"
-```
-
-Deploy and check:
-
-```bash
-fly deploy
-curl https://<your-app>.fly.dev/actuator/health   # {"status":"UP"}
-```
+1. Sign in at dashboard.render.com (GitHub login, no card).
+2. **New → Blueprint** → pick the `spendcheck` repo → Apply. Render creates the web service and the
+   database from `render.yaml`, wiring the `DB_*` vars and generating `JWT_SECRET` automatically.
+3. It pauses for the secret vars marked `sync:false`. Set them on the service → Environment:
+   - `OPENAI_API_KEY` = your Groq key (`gsk_...`)
+   - `APP_USER_EMAIL` = your login email
+   - `APP_USER_PASSWORD` = your login password
+4. Save → it builds the Docker image and deploys. Check:
+   ```
+   curl https://<your-service>.onrender.com/actuator/health   # {"status":"UP"}
+   ```
 
 Notes:
-- `fly.toml` already sets `SERVER_PORT=8080`, the Groq base URL and the model ids as plain env.
+- The app reads Render's `PORT`; the Groq base URL and model ids are plain env in `render.yaml`.
 - Flyway runs the migrations on first boot; the seed user is created from `APP_USER_*`.
-- `auto_stop_machines` scales to zero when idle; the first request after idle takes a few seconds.
-- Flip the repo to use real OpenAI instead of Groq by removing `SPRING_AI_OPENAI_BASE_URL` and
-  setting OpenAI model ids + an OpenAI key.
+- **Free tier sleeps** after ~15 min idle — the first request then takes 30–60s to wake.
+- **Render's free Postgres expires after 90 days.** For a permanent DB, create a free one at
+  neon.tech (no card) and set `DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD` from its connection
+  details (append `?sslmode=require` is handled by Neon's host — use the pooled connection string's
+  parts); then remove the `databases:` block from `render.yaml`.
+- Use real OpenAI instead of Groq by clearing `SPRING_AI_OPENAI_BASE_URL` and setting OpenAI model
+  ids + an OpenAI key.
 
 ## 2. App on EAS
 
@@ -76,10 +62,9 @@ Every push to `main` and every PR runs three jobs:
 Turn the gates on in GitHub → Settings → Branches → add a rule for `main` → require the three
 checks to pass before merging.
 
-## 4. Later: continuous deploy
+## 4. Continuous deploy
 
-- Backend: a `deploy.yml` on push to `main` that runs `fly deploy` using a `FLY_API_TOKEN`
-  GitHub Actions secret (`fly tokens create deploy`).
-- App: `eas build --profile preview --non-interactive` on a tag, using an `EXPO_TOKEN` secret.
-
-These need the Fly and Expo accounts set up first, so they are left for a follow-up.
+- Backend: `render.yaml` sets `autoDeploy: true`, so Render redeploys on every push to `main` once
+  the blueprint is linked — no GitHub Actions needed.
+- App: a workflow can run `eas build --profile preview --non-interactive` on a tag using an
+  `EXPO_TOKEN` GitHub Actions secret. Left for a follow-up until the Expo account is set up.

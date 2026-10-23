@@ -1,0 +1,48 @@
+# Render blueprint for the SpendCheck API + Postgres (free tier, no card).
+# In the Render dashboard: New → Blueprint → pick this repo. It creates both, then asks you to
+# fill the secret env vars marked sync:false. See DEPLOY.md.
+
+databases:
+  - name: spendcheck-db
+    plan: free
+    databaseName: spendcheck
+    user: spendcheck
+
+services:
+  - type: web
+    name: spendcheck-api
+    runtime: docker
+    repo: https://github.com/Partho-Pratim-Choudhury/spendcheck
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: ./api
+    plan: free
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      # Datasource pieces wired from the managed database (internal host → no SSL needed).
+      - key: DB_HOST
+        fromDatabase: { name: spendcheck-db, property: host }
+      - key: DB_PORT
+        fromDatabase: { name: spendcheck-db, property: port }
+      - key: DB_NAME
+        fromDatabase: { name: spendcheck-db, property: database }
+      - key: DB_USER
+        fromDatabase: { name: spendcheck-db, property: user }
+      - key: DB_PASSWORD
+        fromDatabase: { name: spendcheck-db, property: password }
+      # Provider config (not secret).
+      - key: SPRING_AI_OPENAI_BASE_URL
+        value: https://api.groq.com/openai
+      - key: LLM_MODEL
+        value: openai/gpt-oss-20b
+      - key: STT_MODEL
+        value: whisper-large-v3-turbo
+      # Secrets — set these in the dashboard after the blueprint runs.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true          # Render generates a strong value
+      - key: APP_USER_EMAIL
+        sync: false
+      - key: APP_USER_PASSWORD
+        sync: false

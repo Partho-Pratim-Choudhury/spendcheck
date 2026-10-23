@@ -11,7 +11,6 @@ RUN mvn -B -q clean package -DskipTests
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /src/target/*.jar app.jar
-# The platform (Fly) sets PORT; the app reads SERVER_PORT.
-ENV SERVER_PORT=8080
+# The host (Render) injects PORT at runtime; the app reads it (see application.yml).
 EXPOSE 8080
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]
