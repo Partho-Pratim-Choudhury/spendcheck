@@ -1,8 +1,6 @@
-import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { type ComponentRef, useEffect, useRef, useState } from 'react';
+import { type ComponentRef, useRef, useState } from 'react';
 import {
-  Keyboard,
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
@@ -13,95 +11,28 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { decorative } from '@/components/a11y';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { ApiError, checkServerHealth, getApiUrl, setApiUrl } from '@/lib/api';
+import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { normaliseServerUrl, SERVER_URL_PLACEHOLDER } from '@/lib/serverUrl';
 import { colors, radii, spacing, typography } from '@/theme';
 
 export default function LoginScreen() {
-  const { login, serverUrl, saveServerUrl, serverSettingsRequested } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const passwordRef = useRef<ComponentRef<typeof TextInput>>(null);
-  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
-  // The ScrollView brings a focused input into view, but not the Test button below the Server
-  // field — so while that field is focused, scroll the (last) server section fully into view.
-  const serverFocused = useRef(false);
-  useEffect(() => {
-    const sub = Keyboard.addListener('keyboardDidShow', () => {
-      if (serverFocused.current) scrollRef.current?.scrollToEnd({ animated: true });
-    });
-    return () => sub.remove();
-  }, []);
-  // A Test can resolve after the screen is gone (or after sign-in succeeded): drop its result then.
-  const mounted = useRef(true);
-  const signedIn = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
 
-  // Server settings: collapsed when a URL is already known, unless the user asked to change it.
-  const [serverOpen, setServerOpen] = useState(serverSettingsRequested || !serverUrl);
-  const [serverInput, setServerInput] = useState(serverUrl ?? '');
-  const [serverError, setServerError] = useState<string | null>(null);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
-
-  const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting && !testing;
-
-  function onServerChange(text: string) {
-    setServerInput(text);
-    setServerError(null);
-    setTestResult(null);
-  }
-
-  /** Normalise the field; on failure show the inline error and expand the section. */
-  function resolveServerUrl(): string | null {
-    const r = normaliseServerUrl(serverInput);
-    if (!r.ok) {
-      setServerError(r.error);
-      setServerOpen(true);
-      return null;
-    }
-    setServerInput(r.url);
-    setServerError(null);
-    return r.url;
-  }
-
-  async function onTest() {
-    const url = resolveServerUrl();
-    if (!url) return;
-    setTesting(true);
-    setTestResult(null);
-    const reachable = await checkServerHealth(url);
-    if (!mounted.current || signedIn.current) return;
-    if (reachable) await saveServerUrl(url);
-    if (!mounted.current) return;
-    setTestResult(reachable ? { ok: true, message: 'Server reachable' } : { ok: false, message: `Can't reach ${url}` });
-    setTesting(false);
-  }
+  const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
 
   async function onSubmit() {
     if (!canSubmit) return;
-    const url = resolveServerUrl();
-    if (!url) return;
     setSubmitting(true);
     setError(null);
-    // Use the typed server for this request, but only persist it once sign-in works; on failure go back
-    // to the previous one and leave the typed value in the field to correct.
-    const previousUrl = getApiUrl();
-    setApiUrl(url);
     try {
       await login(email, password);
     } catch (e) {
-      setApiUrl(previousUrl);
       if (e instanceof ApiError) {
         setError(e.status === 401 ? (e.detail || 'Incorrect email or password.') : e.detail);
       } else {
@@ -110,8 +41,6 @@ export default function LoginScreen() {
       setSubmitting(false);
       return;
     }
-    signedIn.current = true;
-    if (url !== serverUrl) await saveServerUrl(url); // never throws
     // The root guard swaps to the tabs automatically.
   }
 
@@ -120,7 +49,7 @@ export default function LoginScreen() {
       {/* 'padding' on both platforms, as the chat screen and sheets already use: under Android
           edge-to-edge the window isn't resized for the keyboard, so this view must make room. */}
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
-        <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <Text style={typography.title} accessibilityRole="header">
               SpendCheck
@@ -187,76 +116,6 @@ export default function LoginScreen() {
             <PrimaryButton label="Sign in" onPress={onSubmit} loading={submitting} disabled={!canSubmit} />
           </View>
 
-          <View style={styles.serverSection}>
-            <Pressable
-              onPress={() => setServerOpen((o) => !o)}
-              style={styles.serverToggle}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Server settings"
-              accessibilityState={{ expanded: serverOpen }}>
-              <Feather {...decorative} name={serverOpen ? 'chevron-down' : 'chevron-right'} size={16} color={colors.muted} />
-              <Text style={styles.serverToggleLabel}>Server settings</Text>
-              {!serverOpen ? (
-                <Text style={styles.serverSummary} numberOfLines={1}>
-                  {serverUrl ?? 'not set'}
-                </Text>
-              ) : null}
-            </Pressable>
-
-            {serverOpen ? (
-              <View style={styles.card}>
-                <View style={styles.field}>
-                  <Text style={typography.label} nativeID="serverLabel">
-                    Server
-                  </Text>
-                  <TextInput
-                    style={[styles.input, serverError ? styles.inputError : null]}
-                    value={serverInput}
-                    onChangeText={onServerChange}
-                    placeholder={SERVER_URL_PLACEHOLDER}
-                    placeholderTextColor={colors.muted}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="url"
-                    inputMode="url"
-                    returnKeyType="done"
-                    onFocus={() => {
-                      serverFocused.current = true;
-                      // Keyboard already up (moved from another field): no keyboardDidShow will fire.
-                      if (Keyboard.isVisible()) scrollRef.current?.scrollToEnd({ animated: true });
-                    }}
-                    onBlur={() => {
-                      serverFocused.current = false;
-                    }}
-                    accessibilityLabel="Server"
-                    accessibilityLabelledBy="serverLabel"
-                    editable={!submitting && !testing}
-                  />
-                  {serverError ? (
-                    <Text style={styles.fieldError} accessibilityRole="alert">
-                      {serverError}
-                    </Text>
-                  ) : testResult ? (
-                    <Text
-                      style={testResult.ok ? styles.testOk : styles.fieldError}
-                      accessibilityLiveRegion="polite">
-                      {testResult.message}
-                    </Text>
-                  ) : null}
-                </View>
-                <PrimaryButton
-                  label="Test"
-                  variant="secondary"
-                  onPress={onTest}
-                  loading={testing}
-                  disabled={submitting || testing}
-                  accessibilityLabel="Test server connection"
-                />
-              </View>
-            ) : null}
-          </View>
-
           <Pressable
             onPress={() => router.push('/register')}
             hitSlop={8}
@@ -306,13 +165,6 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     fontSize: 14,
   },
-  inputError: { borderColor: colors.verdict.red.text },
-  fieldError: { fontSize: 13, color: colors.verdict.red.text },
-  testOk: { fontSize: 13, color: colors.verdict.green.text },
-  serverSection: { gap: spacing.md },
-  serverToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', maxWidth: '100%' },
-  serverToggleLabel: { fontSize: 14, color: colors.muted, fontWeight: '500' },
-  serverSummary: { ...typography.caption, flexShrink: 1 },
   switchAuth: { alignItems: 'center' },
   switchAuthText: { fontSize: 14, color: colors.muted },
   switchAuthLink: { color: colors.primary, fontWeight: '600' },

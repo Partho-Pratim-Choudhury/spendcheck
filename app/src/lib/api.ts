@@ -125,7 +125,7 @@ export async function apiFetch<T>(path: string, opts: ApiFetchOptions = {}): Pro
     throw new ApiError({
       status: 0,
       title: 'Server not configured',
-      detail: 'No server address set. Enter it under "Server settings" on the sign-in screen.',
+      detail: 'No server address set. Set it with "Change server" on the Plan screen.',
     });
   }
 

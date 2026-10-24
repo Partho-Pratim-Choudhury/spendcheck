@@ -12,11 +12,12 @@ import { ProgressBar } from '@/components/ProgressBar';
 import { Sheet } from '@/components/Sheet';
 import { ErrorState, LoadingState, errorMessage } from '@/components/States';
 import { TextField } from '@/components/TextField';
-import { ApiError } from '@/lib/api';
+import { ApiError, checkServerHealth } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { daysBetween, ordinal, periodLabel, shortDate } from '@/lib/dates';
 import { formatINR, paiseToInput, parseRupees } from '@/lib/money';
 import { rolloverConfirmText } from '@/lib/rollover';
+import { normaliseServerUrl, SERVER_URL_PLACEHOLDER } from '@/lib/serverUrl';
 import {
   fetchRolloverPreview,
   useCategories,
@@ -33,7 +34,8 @@ import { colors, radii, spacing, typography } from '@/theme';
 export default function PlanScreen() {
   const plan = useCurrentPlan();
   const categories = useCategories();
-  const { user, logout, serverUrl, changeServer } = useAuth();
+  const { user, logout, serverUrl } = useAuth();
+  const [serverSheet, setServerSheet] = useState(false);
   const insets = useSafeAreaInsets();
   // KeyboardAvoidingView measures itself relative to the screen, not the window; offset by the
   // stack header so the overlap with the keyboard isn't under-counted (inputs left hidden).
@@ -73,13 +75,104 @@ export default function PlanScreen() {
             <Text style={styles.serverUrl} numberOfLines={1} selectable>
               Server: {serverUrl ?? 'not set'}
             </Text>
-            <Pressable onPress={() => void changeServer()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Change server">
+            <Pressable onPress={() => setServerSheet(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Change server">
               <Text style={styles.changeServer}>Change server</Text>
             </Pressable>
           </View>
         </View>
+        <ServerSheet visible={serverSheet} onClose={() => setServerSheet(false)} />
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+/** Switch the backend origin. Validates + tests, then saves and signs out so the user re-auths there. */
+function ServerSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { serverUrl, saveServerUrl, logout } = useAuth();
+  const [input, setInput] = useState(serverUrl ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const close = () => {
+    setInput(serverUrl ?? '');
+    setError(null);
+    setTestResult(null);
+    setTesting(false);
+    setSaving(false);
+    onClose();
+  };
+
+  const onChange = (text: string) => {
+    setInput(text);
+    setError(null);
+    setTestResult(null);
+  };
+
+  /** Normalise the field; on failure show the inline error. */
+  const resolve = (): string | null => {
+    const r = normaliseServerUrl(input);
+    if (!r.ok) {
+      setError(r.error);
+      return null;
+    }
+    setInput(r.url);
+    setError(null);
+    return r.url;
+  };
+
+  const onTest = async () => {
+    const url = resolve();
+    if (!url) return;
+    setTesting(true);
+    setTestResult(null);
+    const reachable = await checkServerHealth(url);
+    setTestResult(reachable ? { ok: true, message: 'Server reachable' } : { ok: false, message: `Can't reach ${url}` });
+    setTesting(false);
+  };
+
+  const onSave = async () => {
+    const url = resolve();
+    if (!url) return;
+    setSaving(true);
+    await saveServerUrl(url); // never throws
+    onClose();
+    // Sign out so the next sign-in authenticates against the new server; this unmounts the screen.
+    await logout();
+  };
+
+  return (
+    <Sheet visible={visible} title="Change server" onClose={close}>
+      <Text style={styles.help}>Switching server signs you out, so you sign in again against it.</Text>
+      <TextField
+        label="Server URL"
+        value={input}
+        onChangeText={onChange}
+        placeholder={SERVER_URL_PLACEHOLDER}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+        inputMode="url"
+        returnKeyType="done"
+        editable={!saving}
+        error={error ?? undefined}
+      />
+      {!error && testResult ? (
+        <Text style={testResult.ok ? styles.testOk : styles.error} accessibilityLiveRegion="polite">
+          {testResult.message}
+        </Text>
+      ) : null}
+      <PrimaryButton
+        label="Test"
+        variant="secondary"
+        onPress={() => void onTest()}
+        loading={testing}
+        disabled={testing || saving}
+        accessibilityLabel="Test server connection"
+      />
+      <PrimaryButton label="Save" onPress={() => void onSave()} loading={saving} disabled={testing || saving} />
+    </Sheet>
   );
 }
 
@@ -559,4 +652,5 @@ const styles = StyleSheet.create({
   serverRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing.sm },
   serverUrl: { ...typography.caption, flexShrink: 1 },
   changeServer: { fontSize: 12, color: colors.primary, fontWeight: '600' },
+  testOk: { fontSize: 13, color: colors.verdict.green.text },
 });

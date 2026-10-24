@@ -24,10 +24,6 @@ interface AuthContextValue {
   serverUrl: string | null;
   /** Use and persist an already-normalised server URL. */
   saveServerUrl: (url: string) => Promise<void>;
-  /** Sign out and open the login screen with server settings expanded. */
-  changeServer: () => Promise<void>;
-  /** Login screen should start with server settings expanded (set by changeServer). */
-  serverSettingsRequested: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -47,7 +43,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [serverUrl, setServerUrlState] = useState<string | null>(getApiUrl);
-  const [serverSettingsRequested, setServerSettingsRequested] = useState(false);
 
   const signOutLocal = useCallback(async () => {
     setAuthToken(null);
@@ -122,7 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(res.token);
     setToken(res.token);
     setUser(res.user);
-    setServerSettingsRequested(false);
     setStatus('signedIn');
   }, []);
 
@@ -166,11 +160,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const changeServer = useCallback(async () => {
-    setServerSettingsRequested(true);
-    await signOutLocal();
-  }, [signOutLocal]);
-
   const logout = useCallback(() => signOutLocal(), [signOutLocal]);
 
   const updateUser = useCallback((u: User) => setUser(u), []);
@@ -186,10 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateUser,
       serverUrl,
       saveServerUrl,
-      changeServer,
-      serverSettingsRequested,
     }),
-    [status, user, token, login, register, logout, updateUser, serverUrl, saveServerUrl, changeServer, serverSettingsRequested],
+    [status, user, token, login, register, logout, updateUser, serverUrl, saveServerUrl],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
