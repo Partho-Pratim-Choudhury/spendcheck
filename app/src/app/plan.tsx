@@ -1,10 +1,11 @@
 import { Feather } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { decorative } from '@/components/a11y';
+import { AmountInput, useAmountField } from '@/components/AmountInput';
 import { Card, CardTitle } from '@/components/Card';
 import { GoalSheet } from '@/components/GoalSheet';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -15,7 +16,7 @@ import { TextField } from '@/components/TextField';
 import { ApiError, checkServerHealth } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { daysBetween, ordinal, periodLabel, shortDate } from '@/lib/dates';
-import { formatINR, paiseToInput, parseRupees } from '@/lib/money';
+import { formatINR } from '@/lib/money';
 import { rolloverConfirmText } from '@/lib/rollover';
 import { normaliseServerUrl, SERVER_URL_PLACEHOLDER } from '@/lib/serverUrl';
 import {
@@ -176,11 +177,15 @@ function ServerSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
   );
 }
 
-type LimitMap = Record<string, string>;
+/** Category id → limit in paise. `null` means the field is empty (or cleared); 0 is a real, kept value. */
+type LimitMap = Record<string, number | null>;
+/** Category id → whether its amount field currently holds invalid text (blocks save). */
+type InvalidMap = Record<string, boolean>;
 
 function initialLimits(plan: Plan | null): LimitMap {
   const m: LimitMap = {};
-  for (const l of plan?.limits ?? []) m[String(l.categoryId)] = paiseToInput(l.limitPaise, true);
+  // A stored 0 seeds as empty (null), matching the old blank-zero behaviour.
+  for (const l of plan?.limits ?? []) m[String(l.categoryId)] = l.limitPaise || null;
   return m;
 }
 
@@ -189,9 +194,14 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
   const rollover = useRollover();
   const { user } = useAuth();
   const [previewing, setPreviewing] = useState(false);
-  const [income, setIncome] = useState(plan ? paiseToInput(plan.incomePaise, true) : '');
-  const [savings, setSavings] = useState(plan ? paiseToInput(plan.savingsTargetPaise, true) : '');
+  // Amounts are held in paise; `null` = empty, a number (incl. 0) = a value the user typed.
+  const [income, setIncome] = useState<number | null>(plan && plan.incomePaise ? plan.incomePaise : null);
+  const [savings, setSavings] = useState<number | null>(plan && plan.savingsTargetPaise ? plan.savingsTargetPaise : null);
   const [limits, setLimits] = useState<LimitMap>(() => initialLimits(plan));
+  // Fields holding invalid expressions (e.g. "5000+") — tracked so save can be blocked.
+  const [incomeInvalid, setIncomeInvalid] = useState(false);
+  const [savingsInvalid, setSavingsInvalid] = useState(false);
+  const [limitsInvalid, setLimitsInvalid] = useState<InvalidMap>({});
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
   const [addingFixed, setAddingFixed] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -200,9 +210,9 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
   const fixed = active.filter((c) => c.kind === 'FIXED');
   const variable = active.filter((c) => c.kind !== 'FIXED');
 
-  const val = (id: Category['id']) => parseRupees(limits[String(id)] ?? '') ?? 0;
-  const incomePaise = parseRupees(income) ?? 0;
-  const savingsPaise = parseRupees(savings) ?? 0;
+  const val = (id: Category['id']) => limits[String(id)] ?? 0;
+  const incomePaise = income ?? 0;
+  const savingsPaise = savings ?? 0;
   const fixedTotal = fixed.reduce((s, c) => s + val(c.id), 0);
   const discretionary = incomePaise - fixedTotal - savingsPaise;
   const days = plan ? daysBetween(plan.periodStart, plan.periodEnd) + 1 : 30;
@@ -228,25 +238,24 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
     ([k]) => k !== 'incomePaise' && k !== 'savingsTargetPaise' && !k.startsWith('limits['),
   );
 
-  const setLimit = (id: Category['id'], v: string) => {
+  const setLimit = (id: Category['id'], paise: number | null) => {
     setSaved(false);
-    setLimits((m) => ({ ...m, [String(id)]: v }));
+    setLimits((m) => ({ ...m, [String(id)]: paise }));
   };
+  const setLimitInvalid = (id: Category['id'], invalid: boolean) =>
+    setLimitsInvalid((m) => ({ ...m, [String(id)]: invalid }));
 
   const submit = () => {
     const errs: Record<string, string> = {};
-    if (!parseRupees(income)) errs.incomePaise = 'Enter your monthly income.';
-    if (savings.trim() && parseRupees(savings) === null) errs.savingsTargetPaise = 'Enter a valid amount.';
-    for (const c of active) {
-      const raw = limits[String(c.id)] ?? '';
-      if (raw.trim() && parseRupees(raw) === null) errs[`cat${c.id}`] = 'Invalid amount';
-    }
-    if (!errs.savingsTargetPaise && discretionary < 0 && incomePaise > 0)
+    // Invalid fields show their own inline "Enter a valid amount" hint; an empty income still needs a prompt.
+    if (!incomeInvalid && income == null) errs.incomePaise = 'Enter your monthly income.';
+    if (!savingsInvalid && discretionary < 0 && incomePaise > 0)
       errs.savingsTargetPaise = 'Fixed costs + savings are more than your income.';
     setLocalErrors(errs);
-    if (Object.keys(errs).length > 0) return;
+    const anyLimitInvalid = active.some((c) => limitsInvalid[String(c.id)]);
+    if (Object.keys(errs).length > 0 || incomeInvalid || savingsInvalid || anyLimitInvalid) return;
 
-    const sent = active.filter((c) => (limits[String(c.id)] ?? '').trim() !== '');
+    const sent = active.filter((c) => limits[String(c.id)] != null);
     setSentIds(sent.map((c) => String(c.id)));
     const body: PutPlanRequest = {
       incomePaise,
@@ -282,15 +291,15 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
     <>
       <Card>
         <CardTitle>{plan ? `Current period · ${periodLabel(plan.periodStart, plan.periodEnd)}` : 'Set up your plan'}</CardTitle>
-        <TextField
+        <AmountInput
           label="Monthly income"
           prefix="₹"
-          value={income}
-          onChangeText={(v) => {
+          valuePaise={income}
+          onChangeValuePaise={(p) => {
             setSaved(false);
-            setIncome(v);
+            setIncome(p);
           }}
-          keyboardType="decimal-pad"
+          onInvalidChange={setIncomeInvalid}
           placeholder="e.g. 85000"
           error={fieldErr('incomePaise')}
         />
@@ -312,9 +321,10 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
           <AmountRow
             key={String(c.id)}
             label={c.name}
-            value={limits[String(c.id)] ?? ''}
-            onChange={(v) => setLimit(c.id, v)}
-            error={localErrors[`cat${c.id}`] ?? limitError(c.id)}
+            valuePaise={limits[String(c.id)] ?? null}
+            onChangeValuePaise={(p) => setLimit(c.id, p)}
+            onInvalidChange={(inv) => setLimitInvalid(c.id, inv)}
+            error={limitError(c.id)}
           />
         ))}
         <Pressable
@@ -328,15 +338,16 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
       </Card>
 
       <Card>
-        <TextField
+        <AmountInput
           label="Savings target (per month)"
           prefix="₹"
-          value={savings}
-          onChangeText={(v) => {
+          valuePaise={savings}
+          onChangeValuePaise={(p) => {
             setSaved(false);
-            setSavings(v);
+            setSavings(p);
           }}
-          keyboardType="decimal-pad"
+          onInvalidChange={setSavingsInvalid}
+          allowZero
           placeholder="0"
           error={fieldErr('savingsTargetPaise')}
         />
@@ -372,9 +383,10 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
               <AmountRow
                 label={c.name}
                 caption={c.kind === 'NEED' ? 'Need' : 'Want'}
-                value={limits[String(c.id)] ?? ''}
-                onChange={(v) => setLimit(c.id, v)}
-                error={localErrors[`cat${c.id}`] ?? limitError(c.id)}
+                valuePaise={limits[String(c.id)] ?? null}
+                onChangeValuePaise={(p) => setLimit(c.id, p)}
+                onInvalidChange={(inv) => setLimitInvalid(c.id, inv)}
+                error={limitError(c.id)}
                 stacked
               />
             </View>
@@ -401,18 +413,28 @@ function PlanForm({ plan, categories }: { plan: Plan | null; categories: Categor
 function AmountRow({
   label,
   caption,
-  value,
-  onChange,
+  valuePaise,
+  onChangeValuePaise,
+  onInvalidChange,
   error,
   stacked,
 }: {
   label: string;
   caption?: string;
-  value: string;
-  onChange: (v: string) => void;
+  valuePaise: number | null;
+  onChangeValuePaise: (paise: number | null) => void;
+  onInvalidChange?: (invalid: boolean) => void;
   error?: string;
   stacked?: boolean;
 }) {
+  // Fixed costs and category limits may be 0 (allowZero); empty is fine too, a negative never is.
+  const { text, onChangeText, live, hint } = useAmountField({
+    valuePaise,
+    onChangeValuePaise,
+    onInvalidChange,
+    allowZero: true,
+  });
+  const shownError = error ?? hint ?? undefined;
   return (
     <View style={stacked ? styles.stacked : styles.amountRow}>
       <View style={styles.amountLabelWrap}>
@@ -421,19 +443,23 @@ function AmountRow({
         </Text>
         {caption ? <Text style={styles.caption}>{caption}</Text> : null}
       </View>
-      <View style={[styles.amountBox, !!error && styles.amountBoxError, stacked && styles.amountBoxStacked]}>
-        <Text style={styles.prefix}>₹</Text>
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          keyboardType="decimal-pad"
-          placeholder="0"
-          placeholderTextColor={colors.muted}
-          accessibilityLabel={`${label} amount`}
-          style={styles.amountInput}
-        />
+      <View style={stacked ? styles.fieldColStacked : styles.fieldCol}>
+        <View style={[styles.amountBox, !!shownError && styles.amountBoxError]}>
+          <Text style={styles.prefix}>₹</Text>
+          <TextInput
+            value={text}
+            onChangeText={onChangeText}
+            // Operators need a keyboard that shows them: iOS numbers-and-punctuation, else the default.
+            keyboardType={Platform.select({ ios: 'numbers-and-punctuation', android: 'default', default: 'default' })}
+            placeholder="0"
+            placeholderTextColor={colors.muted}
+            accessibilityLabel={`${label} amount`}
+            style={styles.amountInput}
+          />
+        </View>
+        {live ? <Text style={styles.liveRight}>{live}</Text> : null}
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {shownError ? <Text style={styles.error}>{shownError}</Text> : null}
     </View>
   );
 }
@@ -533,17 +559,17 @@ function AddFixedSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  onAdded: (c: Category, amount: string) => void;
+  onAdded: (c: Category, amountPaise: number) => void;
 }) {
   const create = useCreateCategory();
   const [name, setName] = useState('');
-  const [amount, setAmount] = useState('');
+  const [amountPaise, setAmountPaise] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const server = create.error instanceof ApiError ? create.error.fieldErrors : {};
 
   const close = () => {
     setName('');
-    setAmount('');
+    setAmountPaise(null);
     setErr(null);
     create.reset();
     onClose();
@@ -551,13 +577,13 @@ function AddFixedSheet({
 
   const submit = () => {
     if (!name.trim()) return setErr('Name it, e.g. Rent.');
-    if (!parseRupees(amount)) return setErr('Enter the monthly amount.');
+    if (amountPaise == null || amountPaise <= 0) return setErr('Enter the monthly amount.');
     setErr(null);
     create.mutate(
       { name: name.trim(), kind: 'FIXED' },
       {
         onSuccess: (c) => {
-          onAdded(c, amount);
+          onAdded(c, amountPaise);
           close();
         },
       },
@@ -567,7 +593,17 @@ function AddFixedSheet({
   return (
     <Sheet visible={visible} title="Add fixed cost" onClose={close}>
       <TextField label="Name" value={name} onChangeText={setName} placeholder="e.g. Rent" error={server.name} />
-      <TextField label="Monthly amount" prefix="₹" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+      <AmountInput
+        // This sheet stays mounted; remount the field each open so it starts from the reset value.
+        key={visible ? 'open' : 'closed'}
+        label="Monthly amount"
+        prefix="₹"
+        valuePaise={amountPaise}
+        onChangeValuePaise={(p) => {
+          setAmountPaise(p);
+          setErr(null);
+        }}
+      />
       {err || (create.error && !server.name) ? <Text style={styles.error}>{err ?? errorMessage(create.error)}</Text> : null}
       <PrimaryButton label="Add" onPress={submit} loading={create.isPending} />
       <Text style={styles.help}>Remember to tap “Save plan” afterwards.</Text>
@@ -588,10 +624,11 @@ const styles = StyleSheet.create({
   stacked: { gap: spacing.xs },
   amountLabelWrap: { flex: 1, minWidth: 80 },
   amountLabel: { fontSize: 15, color: colors.ink, fontWeight: '500' },
+  fieldCol: { width: 140, gap: 2 },
+  fieldColStacked: { width: '100%', gap: 2 },
   amountBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: 140,
     minHeight: 44,
     borderWidth: 1,
     borderColor: colors.border,
@@ -599,8 +636,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     backgroundColor: colors.surface,
   },
-  amountBoxStacked: { width: '100%' },
   amountBoxError: { borderColor: colors.verdict.red.text },
+  liveRight: { fontSize: 13, color: colors.muted, textAlign: 'right', fontVariant: ['tabular-nums'] },
   prefix: { fontSize: 15, color: colors.muted, marginRight: 4 },
   amountInput: { flex: 1, fontSize: 16, color: colors.ink, textAlign: 'right', fontVariant: ['tabular-nums'] },
   salaryRow: {

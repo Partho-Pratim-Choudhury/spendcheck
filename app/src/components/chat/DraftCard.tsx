@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { AmountInput } from '@/components/AmountInput';
 import { CategoryPicker } from '@/components/CategoryPicker';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { ProgressBar, usageColor } from '@/components/ProgressBar';
 import { SegmentedToggle } from '@/components/SegmentedToggle';
 import { TextField } from '@/components/TextField';
 import { relativeDay, toYmd } from '@/lib/dates';
-import { formatINR, paiseToInput, parseRupees } from '@/lib/money';
+import { formatINR } from '@/lib/money';
 import { useCategories } from '@/lib/queries';
 import type { Category, Draft, NeedOrWant, Transaction } from '@/lib/types';
 import { categoryColor, colors, radii, spacing, typography } from '@/theme';
@@ -49,22 +50,23 @@ function PendingDraft({ draft, confirming, error, onConfirm }: Omit<Props, 'conf
   const categories = useCategories();
   const [nw, setNw] = useState<NeedOrWant | null>(draft.needOrWant);
   const [editing, setEditing] = useState(false);
-  const [amount, setAmount] = useState(paiseToInput(draft.amountPaise));
+  const [amountPaise, setAmountPaise] = useState<number | null>(draft.amountPaise);
   const [categoryId, setCategoryId] = useState<Category['id']>(draft.categoryId);
   const [merchant, setMerchant] = useState(draft.merchant ?? '');
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const amountPaise = parseRupees(amount) ?? 0;
+  // Null (empty / invalid) falls back to 0 for the display + preview, matching the old behaviour.
+  const amountForPreview = amountPaise ?? 0;
   const sameCategory = String(categoryId) === String(draft.categoryId);
   const categoryName =
     (categories.data ?? []).find((c) => String(c.id) === String(categoryId))?.name ?? draft.categoryName;
   // Display-only: shift the server's "after" by the edited amount; unknown for another category.
   const after = sameCategory
-    ? { spent: draft.after.categorySpentPaise - draft.amountPaise + amountPaise, limit: draft.after.categoryLimitPaise }
+    ? { spent: draft.after.categorySpentPaise - draft.amountPaise + amountForPreview, limit: draft.after.categoryLimitPaise }
     : null;
 
   const confirm = () => {
-    if (amountPaise <= 0) {
+    if (amountPaise == null || amountPaise <= 0) {
       setLocalError('Enter an amount greater than ₹0.');
       return;
     }
@@ -81,7 +83,15 @@ function PendingDraft({ draft, confirming, error, onConfirm }: Omit<Props, 'conf
         <Text style={styles.kicker}>LOG THIS SPEND?</Text>
         {editing ? (
           <View style={styles.edit}>
-            <TextField label="Amount" prefix="₹" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+            <AmountInput
+              label="Amount"
+              prefix="₹"
+              valuePaise={amountPaise}
+              onChangeValuePaise={(p) => {
+                setAmountPaise(p);
+                setLocalError(null);
+              }}
+            />
             <CategoryPicker
               categories={(categories.data ?? []).filter((c) => c.kind !== 'FIXED' || String(c.id) === String(categoryId))}
               value={categoryId}
@@ -91,7 +101,7 @@ function PendingDraft({ draft, confirming, error, onConfirm }: Omit<Props, 'conf
           </View>
         ) : (
           <>
-            <Text style={[styles.amount, typography.amount]}>{formatINR(amountPaise, 'exact')}</Text>
+            <Text style={[styles.amount, typography.amount]}>{formatINR(amountForPreview, 'exact')}</Text>
             <View style={styles.metaRow}>
               <View style={[styles.catChip, { backgroundColor: `${chipColor}1F` }]}>
                 <Text style={[styles.catChipText, { color: chipColor }]}>{categoryName}</Text>

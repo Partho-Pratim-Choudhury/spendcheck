@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { ApiError } from '@/lib/api';
-import { paiseToInput, parseRupees } from '@/lib/money';
 import { useDeleteGoal, useSaveGoal } from '@/lib/queries';
 import type { Goal, GoalInput, PatchGoal } from '@/lib/types';
 import { colors, spacing } from '@/theme';
 
+import { AmountInput } from './AmountInput';
 import { PrimaryButton } from './PrimaryButton';
 import { Sheet } from './Sheet';
 import { errorMessage } from './States';
@@ -27,9 +27,14 @@ function GoalForm({ goal, onDone }: { goal: Goal | null; onDone: () => void }) {
   const save = useSaveGoal();
   const del = useDeleteGoal();
   const [name, setName] = useState(goal?.name ?? '');
-  const [target, setTarget] = useState(goal ? paiseToInput(goal.targetPaise) : '');
-  const [saved, setSaved] = useState(goal ? paiseToInput(goal.savedPaise, true) : '');
-  const [monthly, setMonthly] = useState(goal ? paiseToInput(goal.monthlyContributionPaise, true) : '');
+  const [targetPaise, setTargetPaise] = useState<number | null>(goal ? goal.targetPaise : null);
+  // Optional amounts: seed a stored 0 as empty so the field shows its "0" placeholder, as before.
+  const [savedPaise, setSavedPaise] = useState<number | null>(goal && goal.savedPaise ? goal.savedPaise : null);
+  const [monthlyPaise, setMonthlyPaise] = useState<number | null>(
+    goal && goal.monthlyContributionPaise ? goal.monthlyContributionPaise : null,
+  );
+  const [savedInvalid, setSavedInvalid] = useState(false);
+  const [monthlyInvalid, setMonthlyInvalid] = useState(false);
   const [date, setDate] = useState(goal?.targetDate ?? '');
   const [local, setLocal] = useState<Record<string, string>>({});
 
@@ -38,22 +43,18 @@ function GoalForm({ goal, onDone }: { goal: Goal | null; onDone: () => void }) {
 
   const submit = () => {
     const errs: Record<string, string> = {};
-    const targetPaise = parseRupees(target);
-    const savedPaise = saved.trim() ? parseRupees(saved) : 0;
-    const monthlyPaise = monthly.trim() ? parseRupees(monthly) : 0;
     if (!name.trim()) errs.name = 'Give the goal a name.';
-    if (!targetPaise || targetPaise <= 0) errs.targetPaise = 'Enter a target amount.';
-    if (savedPaise === null) errs.savedPaise = 'Enter a valid amount.';
-    if (monthlyPaise === null) errs.monthlyContributionPaise = 'Enter a valid amount.';
+    if (targetPaise == null || targetPaise <= 0) errs.targetPaise = 'Enter a target amount.';
     if (date.trim() && !DATE_RE.test(date.trim())) errs.targetDate = 'Use YYYY-MM-DD.';
     setLocal(errs);
-    if (Object.keys(errs).length > 0) return;
+    // Invalid optional amounts already show the field's inline hint; just block the save.
+    if (Object.keys(errs).length > 0 || savedInvalid || monthlyInvalid) return;
     const targetDate = date.trim() || null;
     const base: GoalInput = {
       name: name.trim(),
       targetPaise: targetPaise!,
-      savedPaise: savedPaise!,
-      monthlyContributionPaise: monthlyPaise!,
+      savedPaise: savedPaise ?? 0,
+      monthlyContributionPaise: monthlyPaise ?? 0,
       targetDate,
     };
     // PATCH treats null as "unchanged", so emptying the date on edit needs an explicit clear.
@@ -74,16 +75,26 @@ function GoalForm({ goal, onDone }: { goal: Goal | null; onDone: () => void }) {
   return (
     <View style={styles.form}>
       <TextField label="Name" value={name} onChangeText={setName} placeholder="e.g. Goa trip" error={err('name')} />
-      <TextField label="Target" prefix="₹" value={target} onChangeText={setTarget} keyboardType="decimal-pad" error={err('targetPaise')} />
-      <TextField label="Saved so far" prefix="₹" value={saved} onChangeText={setSaved} keyboardType="decimal-pad" placeholder="0" error={err('savedPaise')} />
-      <TextField
+      <AmountInput label="Target" prefix="₹" valuePaise={targetPaise} onChangeValuePaise={setTargetPaise} error={err('targetPaise')} />
+      <AmountInput
+        label="Saved so far"
+        prefix="₹"
+        valuePaise={savedPaise}
+        onChangeValuePaise={setSavedPaise}
+        onInvalidChange={setSavedInvalid}
+        allowZero
+        placeholder="0"
+        error={server.savedPaise}
+      />
+      <AmountInput
         label="Monthly contribution"
         prefix="₹"
-        value={monthly}
-        onChangeText={setMonthly}
-        keyboardType="decimal-pad"
+        valuePaise={monthlyPaise}
+        onChangeValuePaise={setMonthlyPaise}
+        onInvalidChange={setMonthlyInvalid}
+        allowZero
         placeholder="0"
-        error={err('monthlyContributionPaise')}
+        error={server.monthlyContributionPaise}
       />
       <TextField
         label="Target date (optional)"

@@ -3,13 +3,13 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { addDays, friendlyDate, instantToYmd, moveInstantToDay, toYmd } from '@/lib/dates';
-import { paiseToInput, parseRupees } from '@/lib/money';
 import { useCategories, useDeleteTransaction, useUpdateTransaction } from '@/lib/queries';
 import type { NeedOrWant, Transaction, UpdateTransactionRequest } from '@/lib/types';
 import { ApiError } from '@/lib/api';
 import { colors, radii, spacing } from '@/theme';
 
 import { decorative } from './a11y';
+import { AmountInput } from './AmountInput';
 import { CategoryPicker } from './CategoryPicker';
 import { PrimaryButton } from './PrimaryButton';
 import { SegmentedToggle } from './SegmentedToggle';
@@ -35,7 +35,7 @@ function EditForm({ tx, onDone }: { tx: Transaction; onDone: () => void }) {
   const update = useUpdateTransaction();
   const del = useDeleteTransaction();
 
-  const [amount, setAmount] = useState(paiseToInput(tx.amountPaise));
+  const [amountPaise, setAmountPaise] = useState<number | null>(tx.amountPaise);
   const [categoryId, setCategoryId] = useState(tx.categoryId);
   const [merchant, setMerchant] = useState(tx.merchant ?? '');
   const [note, setNote] = useState(tx.note ?? '');
@@ -44,7 +44,6 @@ function EditForm({ tx, onDone }: { tx: Transaction; onDone: () => void }) {
   const [formError, setFormError] = useState<string | null>(null);
 
   const fieldErrors = update.error instanceof ApiError ? update.error.fieldErrors : {};
-  const amountPaise = parseRupees(amount);
   const today = toYmd(new Date());
   // Match the chat draft picker: variable spends move between NEED/WANT categories only;
   // a spend already in a FIXED category (rent, EMI…) stays among FIXED ones.
@@ -54,7 +53,7 @@ function EditForm({ tx, onDone }: { tx: Transaction; onDone: () => void }) {
 
   const save = () => {
     setFormError(null);
-    if (!amountPaise || amountPaise <= 0) {
+    if (amountPaise == null || amountPaise <= 0) {
       setFormError('Enter an amount greater than ₹0.');
       return;
     }
@@ -85,12 +84,14 @@ function EditForm({ tx, onDone }: { tx: Transaction; onDone: () => void }) {
 
   return (
     <View style={styles.form}>
-      <TextField
+      <AmountInput
         label="Amount"
         prefix="₹"
-        value={amount}
-        onChangeText={setAmount}
-        keyboardType="decimal-pad"
+        valuePaise={amountPaise}
+        onChangeValuePaise={(p) => {
+          setAmountPaise(p);
+          setFormError(null);
+        }}
         error={fieldErrors.amountPaise}
       />
       <CategoryPicker categories={pickable} value={categoryId} onChange={setCategoryId} />
