@@ -34,6 +34,21 @@ voice / text ──► /inputs ──► speech-to-text ──► LLM extraction
 - The OpenAI key lives only in the backend environment, never in the app.
 - The API contract is in [docs/API.md](docs/API.md).
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/chat-verdict.png" width="230"><br><sub><b>Pre-spend check</b> — verdict before you buy</sub></td>
+    <td align="center"><img src="docs/screenshots/chat-draft.png" width="230"><br><sub><b>Log by text/voice</b> — confirm, edit or discard</sub></td>
+    <td align="center"><img src="docs/screenshots/home.png" width="230"><br><sub><b>Home</b> — safe today, burn vs plan</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/spends.png" width="230"><br><sub><b>Spends</b> — filterable, needs vs wants</sub></td>
+    <td align="center"><img src="docs/screenshots/reports.png" width="230"><br><sub><b>Reports</b> — where it went, on-track-to-save</sub></td>
+    <td align="center"><img src="docs/screenshots/plan.png" width="230"><br><sub><b>Plan</b> — income, fixed costs, limits</sub></td>
+  </tr>
+</table>
+
 ## Screens
 
 Chat (text + press-and-hold voice, confirm cards, verdict cards) · Home (safe to spend today,
