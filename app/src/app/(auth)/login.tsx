@@ -114,6 +114,9 @@ export default function LoginScreen() {
             ) : null}
 
             <PrimaryButton label="Sign in" onPress={onSubmit} loading={submitting} disabled={!canSubmit} />
+            {submitting ? (
+              <Text style={styles.waking}>Waking the server — this can take up to a minute after a quiet spell.</Text>
+            ) : null}
           </View>
 
           <Pressable
@@ -139,6 +142,7 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.xl },
   header: { gap: spacing.xs },
   subtitle: { fontSize: 16, color: colors.muted },
+  waking: { fontSize: 13, color: colors.muted, textAlign: 'center', marginTop: 4 },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii.md,

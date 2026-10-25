@@ -5,6 +5,10 @@ import { apiFetch, DEFAULT_API_URL, getApiUrl, isNetworkError, setApiUrl, setAut
 import { normaliseServerUrl, SERVER_URL_KEY } from './serverUrl';
 import type { LoginResponse, RegisterRequest, User } from './types';
 
+// The free backend host (Render) sleeps when idle and can take ~a minute to wake; give the
+// auth calls a long timeout so the first attempt after inactivity still succeeds.
+const WAKE_TIMEOUT_MS = 60_000;
+
 const TOKEN_KEY = 'spendcheck.token';
 const EXPIRES_KEY = 'spendcheck.expiresAt';
 
@@ -88,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         setAuthToken(storedToken);
-        const me = await apiFetch<User>('/me');
+        const me = await apiFetch<User>('/me', { timeoutMs: WAKE_TIMEOUT_MS });
         if (cancelled) return;
         setToken(storedToken);
         setUser(me);
@@ -126,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         auth: false,
         body: { email: email.trim(), password },
+        timeoutMs: WAKE_TIMEOUT_MS, // the free host can take ~a minute to wake from idle
       });
       await applyAuth(res);
     },
@@ -137,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await apiFetch<LoginResponse>('/auth/register', {
         method: 'POST',
         auth: false,
+        timeoutMs: WAKE_TIMEOUT_MS,
         body: {
           email: input.email.trim(),
           password: input.password,
