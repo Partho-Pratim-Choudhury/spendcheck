@@ -3,14 +3,14 @@ import type { Category, Draft, NeedOrWant, Transaction, UndoCandidate, Verdict }
 
 export type InputSource = 'TEXT' | 'VOICE';
 
-/** What the user just sent. */
-export type InputPayload = { type: 'text'; text: string } | { type: 'voice'; uri: string; bubbleId: string };
+/** What the user just sent. `bubbleId` is the id of the user bubble this input produced, so a draft can link back to it. */
+export type InputPayload = { type: 'text'; text: string; bubbleId: string } | { type: 'voice'; uri: string; bubbleId: string };
 
 /**
  * What an error bubble can replay. A voice retry needs a KeptRecording — only sendVoiceInput's
  * retryable failure hands one out — and is dropped (see dropVoiceRetries) when that file is deleted.
  */
-export type RetryPayload = { type: 'text'; text: string } | { type: 'voice'; recording: KeptRecording; bubbleId: string };
+export type RetryPayload = { type: 'text'; text: string; bubbleId: string } | { type: 'voice'; recording: KeptRecording; bubbleId: string };
 
 export type UndoState = 'pending' | 'removed' | 'kept';
 
@@ -48,6 +48,8 @@ export type ChatMessage =
       rawInputId: number;
       source: InputSource;
       draft: Draft;
+      /** Id of the user message that produced this draft; discarding removes both so the exchange disappears. */
+      originId: string;
       /** Client id for the spend, fixed per card so a retried confirm is idempotent server-side. */
       txId: string;
       confirmed: Transaction | null;
@@ -120,6 +122,18 @@ export function failCardAction(m: ChatMessage, error: string): ChatMessage {
 
 export function confirmDraft(m: ChatMessage, tx: Transaction): ChatMessage {
   return m.kind === 'draft' ? { ...m, confirmed: tx, confirming: false, error: null } : m;
+}
+
+/**
+ * Discard an un-confirmed draft: drop the draft card and the user message that produced it, so the whole
+ * exchange disappears from the chat. Nothing was saved, so there is no network call. A confirmed draft (or
+ * an unknown id) is left untouched — deleting a logged spend stays the Spends-tab flow.
+ */
+export function discardDraft(messages: ChatMessage[], draftId: string): ChatMessage[] {
+  const draft = messages.find((m) => m.id === draftId);
+  if (!draft || draft.kind !== 'draft' || draft.confirmed) return messages;
+  const { originId } = draft;
+  return messages.filter((m) => m.id !== draftId && m.id !== originId);
 }
 
 export function settleVerdict(m: ChatMessage, outcome: VerdictOutcome): ChatMessage {

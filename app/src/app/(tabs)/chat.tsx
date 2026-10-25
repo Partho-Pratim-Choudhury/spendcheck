@@ -11,6 +11,7 @@ import {
   beginCardAction,
   type ChatMessage,
   confirmDraft,
+  discardDraft,
   type DraftEdits,
   dropVoiceRetries,
   failCardAction,
@@ -162,6 +163,9 @@ export default function ChatScreen() {
     [cardAction, createTx, patch],
   );
 
+  /** Dismiss an un-confirmed draft: drop the card and the user message that produced it. In-memory only — nothing was saved. */
+  const dismissDraft = useCallback((m: Msg<'draft'>) => setMessages((prev) => discardDraft(prev, m.id)), []);
+
   const decideVerdict = useCallback(
     (m: Msg<'verdict'>, action: VerdictAction) =>
       cardAction(
@@ -217,7 +221,7 @@ export default function ChatScreen() {
   }, []);
 
   const handleResult = useCallback(
-    (r: InputResult, source: InputSource) => {
+    (r: InputResult, source: InputSource, originId: string) => {
       const out: ChatMessage[] = [];
       if (r.followUp) out.push({ id: nextId(), kind: 'bot', text: r.followUp.question });
       if (r.verdict) {
@@ -238,6 +242,7 @@ export default function ChatScreen() {
           rawInputId: r.rawInputId,
           source,
           draft: r.draft,
+          originId,
           txId: Crypto.randomUUID(),
           confirmed: null,
         });
@@ -280,12 +285,12 @@ export default function ChatScreen() {
       discardKeptVoice(payload.type === 'voice' ? payload.uri : undefined);
       try {
         if (payload.type === 'text') {
-          handleResult(await sendTextInput(payload.text), 'TEXT');
+          handleResult(await sendTextInput(payload.text), 'TEXT', payload.bubbleId);
         } else {
           const r = await sendVoiceInput(payload.uri);
           keptVoice.current.delete(payload.uri);
           patch(payload.bubbleId, (m) => (m.kind === 'user' ? { ...m, text: r.transcript ?? '', pending: false } : m));
-          handleResult(r, 'VOICE');
+          handleResult(r, 'VOICE', payload.bubbleId);
         }
       } catch (e) {
         if (payload.type === 'voice') {
@@ -314,8 +319,9 @@ export default function ChatScreen() {
 
   const sendText = (text: string) => {
     if (inFlight.current) return;
-    add({ id: nextId(), kind: 'user', text, voice: false });
-    void run({ type: 'text', text });
+    const bubbleId = nextId();
+    add({ id: bubbleId, kind: 'user', text, voice: false });
+    void run({ type: 'text', text, bubbleId });
   };
 
   /** Returns false (and drops the recording) when another input is still in flight. */
@@ -391,6 +397,7 @@ export default function ChatScreen() {
             error={m.error}
             undone={m.undone}
             onConfirm={(edits) => void confirmSpend(m, edits)}
+            onDiscard={() => dismissDraft(m)}
           />
         );
       case 'verdict':

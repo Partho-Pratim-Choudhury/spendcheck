@@ -7,6 +7,7 @@ import {
   beginCardAction,
   type ChatMessage,
   confirmDraft,
+  discardDraft,
   dropVoiceRetries,
   failCardAction,
   hasPendingUndo,
@@ -60,7 +61,7 @@ describe('dropVoiceRetries', () => {
   it('removes voice retries and keeps text ones', () => {
     const out = dropVoiceRetries([
       { id: 'v', kind: 'error', text: 'e', retry: { type: 'voice', recording: 'file:///a.m4a' as KeptRecording, bubbleId: 'b' } },
-      { id: 't', kind: 'error', text: 'e', retry: { type: 'text', text: 'hi' } },
+      { id: 't', kind: 'error', text: 'e', retry: { type: 'text', text: 'hi', bubbleId: 'b2' } },
     ]);
     expect(out.map((m) => (m.kind === 'error' ? m.retry?.type ?? null : null))).toEqual([null, 'text']);
   });
@@ -70,6 +71,48 @@ const draft = (id: string): ChatMessage =>
   ({ id, kind: 'draft', rawInputId: 1, source: 'TEXT', draft: {}, txId: 't1', confirmed: null }) as unknown as ChatMessage;
 const verdict = (id: string): ChatMessage =>
   ({ id, kind: 'verdict', rawInputId: 1, source: 'TEXT', verdict: {}, draft: null, txId: 't1', outcome: null }) as unknown as ChatMessage;
+
+const userMsg = (id: string, text = 'health insurance 5000'): ChatMessage => ({ id, kind: 'user', text, voice: false });
+const draftFrom = (id: string, originId: string, confirmed = false): ChatMessage =>
+  ({
+    id,
+    kind: 'draft',
+    rawInputId: 1,
+    source: 'TEXT',
+    draft: {},
+    originId,
+    txId: 't1',
+    confirmed: confirmed ? { id: 't1' } : null,
+  }) as unknown as ChatMessage;
+
+describe('discardDraft', () => {
+  it('removes the un-confirmed draft and its originating user message, keeping the rest', () => {
+    const msgs = [
+      { id: 'b0', kind: 'bot', text: 'hi' } as ChatMessage,
+      userMsg('u1'),
+      draftFrom('d1', 'u1'),
+    ];
+    const out = discardDraft(msgs, 'd1');
+    expect(out.map((m) => m.id)).toEqual(['b0']);
+  });
+
+  it('only removes the matched draft and its own origin, leaving another exchange intact', () => {
+    const msgs = [userMsg('u1'), draftFrom('d1', 'u1'), userMsg('u2'), draftFrom('d2', 'u2')];
+    const out = discardDraft(msgs, 'd2');
+    expect(out.map((m) => m.id)).toEqual(['u1', 'd1']);
+  });
+
+  it('leaves a confirmed draft (and its origin) untouched — deleting a logged spend is the Spends-tab flow', () => {
+    const msgs = [userMsg('u1'), draftFrom('d1', 'u1', true)];
+    expect(discardDraft(msgs, 'd1')).toBe(msgs);
+  });
+
+  it('is a no-op for an unknown or non-draft id', () => {
+    const msgs = [userMsg('u1'), draftFrom('d1', 'u1')];
+    expect(discardDraft(msgs, 'nope')).toBe(msgs);
+    expect(discardDraft(msgs, 'u1')).toBe(msgs);
+  });
+});
 
 describe('card request state', () => {
   it('undo: removing -> failed keeps the card pending with the error; removed clears it', () => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AmountInput } from '@/components/AmountInput';
 import { CategoryPicker } from '@/components/CategoryPicker';
@@ -29,9 +29,11 @@ interface Props {
   undone?: boolean;
   /** The chat screen owns the POST so its outcome lands even if this card scrolls away. */
   onConfirm: (edits: DraftEdits) => void;
+  /** Dismiss an un-confirmed draft: the chat screen drops this card and the message that produced it. */
+  onDiscard: () => void;
 }
 
-export function DraftCard({ draft, confirmed, confirming, error, undone, onConfirm }: Props) {
+export function DraftCard({ draft, confirmed, confirming, error, undone, onConfirm, onDiscard }: Props) {
   if (confirmed) {
     return (
       <CompactLine
@@ -43,10 +45,10 @@ export function DraftCard({ draft, confirmed, confirming, error, undone, onConfi
       />
     );
   }
-  return <PendingDraft draft={draft} confirming={confirming} error={error} onConfirm={onConfirm} />;
+  return <PendingDraft draft={draft} confirming={confirming} error={error} onConfirm={onConfirm} onDiscard={onDiscard} />;
 }
 
-function PendingDraft({ draft, confirming, error, onConfirm }: Omit<Props, 'confirmed' | 'undone'>) {
+function PendingDraft({ draft, confirming, error, onConfirm, onDiscard }: Omit<Props, 'confirmed' | 'undone'>) {
   const categories = useCategories();
   const [nw, setNw] = useState<NeedOrWant | null>(draft.needOrWant);
   const [editing, setEditing] = useState(false);
@@ -140,6 +142,16 @@ function PendingDraft({ draft, confirming, error, onConfirm }: Omit<Props, 'conf
             style={styles.editBtn}
           />
         </View>
+        <Pressable
+          onPress={onDiscard}
+          disabled={confirming}
+          accessibilityRole="button"
+          accessibilityLabel="Discard this spend"
+          accessibilityState={{ disabled: !!confirming }}
+          hitSlop={8}
+          style={({ pressed }) => [styles.discard, (pressed || confirming) && styles.discardDim]}>
+          <Text style={styles.discardText}>Discard</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -169,4 +181,7 @@ const styles = StyleSheet.create({
   buttons: { flexDirection: 'row', gap: spacing.sm },
   flex: { flex: 1 },
   editBtn: { minWidth: 96 },
+  discard: { alignSelf: 'center', paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, marginTop: -spacing.xs },
+  discardDim: { opacity: 0.5 },
+  discardText: { fontSize: 14, fontWeight: '600', color: colors.muted },
 });
